@@ -1,0 +1,108 @@
+/* css/components.css */
+
+/* Custom Card Component */
+.card-custom {
+    background-color: var(--white);
+    border: 1px solid var(--light-gray);
+    border-radius: 12px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    overflow: hidden;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card-custom:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.card-custom-body {
+    padding: 1.5rem;
+}
+
+.card-custom-img {
+    width: 100%;
+    height: 200px;
+    object-fit: cover;
+    background-color: var(--light-gray); /* Placeholder color if image fails */
+}
+
+/* Status Badges */
+.badge-custom {
+    padding: 6px 12px;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    display: inline-block;
+}
+
+.badge-success {
+    background-color: #DCFCE7; /* Light green bg */
+    color: var(--success-green);
+    border: 1px solid #BBF7D0;
+}
+
+.badge-danger {
+    background-color: #FEE2E2; /* Light red bg */
+    color: var(--danger-red);
+    border: 1px solid #FECACA;
+}
+
+.badge-warning {
+    background-color: #FEF3C7; /* Light orange bg */
+    color: var(--warning-orange);
+    border: 1px solid #FDE68A;
+}
+
+.badge-neutral {
+    background-color: var(--light-gray);
+    color: var(--dark-gray);
+    border: 1px solid #D1D5DB;
+}
+
+/* Stats Card for Dashboard */
+.stat-card {
+    background-color: var(--white);
+    border-radius: 12px;
+    padding: 1.5rem;
+    display: flex;
+    align-items: center;
+    border: 1px solid var(--light-gray);
+}
+
+.stat-card-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    margin-right: 1rem;
+}
+
+.stat-icon-blue {
+    background-color: #EFF6FF;
+    color: var(--primary-blue);
+}
+
+.stat-icon-green {
+    background-color: #F0FDF4;
+    color: var(--success-green);
+}
+
+.stat-icon-orange {
+    background-color: #FFFBEB;
+    color: var(--warning-orange);
+}
+
+.stat-card-info h3 {
+    margin: 0;
+    font-size: 1.5rem;
+    color: var(--charcoal);
+}
+
+.stat-card-info p {
+    margin: 0;
+    color: var(--gray);
+    font-size: 0.875rem;
+}

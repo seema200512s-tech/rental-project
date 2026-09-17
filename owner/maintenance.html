@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vehicle Maintenance - Owner - RentRide</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/components.css">
+</head>
+<body class="bg-light">
+
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-custom py-3">
+        <div class="container">
+            <a class="navbar-brand fw-bold fs-4" href="dashboard.html">
+                <i class="fa-solid fa-car-side me-2"></i>RentRide <span class="badge bg-primary ms-2 fs-6">Owner</span>
+            </a>
+            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon" style="filter: invert(1);"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="dashboard.html">Dashboard</a></li>
+                    <li class="nav-item"><a class="nav-link" href="add-vehicle.html">Add Vehicle</a></li>
+                    <li class="nav-item"><a class="nav-link" href="manage-vehicles.html">My Vehicles</a></li>
+                    <li class="nav-item"><a class="nav-link" href="bookings.html">Booking Requests</a></li>
+                    <li class="nav-item"><a class="nav-link" href="earnings.html">Earnings</a></li>
+                    <li class="nav-item"><a class="nav-link active" href="maintenance.html">Maintenance</a></li>
+                </ul>
+                <div class="d-flex align-items-center">
+                    <button class="btn btn-sm btn-outline-light logout-btn"><i class="fa-solid fa-right-from-bracket me-1"></i>Logout</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container py-5">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="fw-bold mb-0">Vehicle Maintenance Log</h2>
+            <button class="btn btn-primary-custom fw-medium" data-bs-toggle="modal" data-bs-target="#addMaintenanceModal">
+                <i class="fa-solid fa-plus me-2"></i>Log Maintenance
+            </button>
+        </div>
+
+        <div id="loadingIndicator" class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+        </div>
+
+        <div id="logsContainer" style="display: none;">
+            <!-- Summary Stats -->
+            <div class="row g-4 mb-5" id="statsRow"></div>
+
+            <!-- Logs Table -->
+            <div class="card card-custom shadow-sm">
+                <div class="p-4 border-bottom">
+                    <h5 class="fw-bold mb-0">Service History</h5>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Vehicle</th>
+                                <th>Service Type</th>
+                                <th>Description</th>
+                                <th>Cost</th>
+                                <th>Date</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logsTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="emptyState" class="text-center py-5 d-none">
+            <i class="fa-solid fa-wrench fa-3x text-light-gray mb-3"></i>
+            <h4 class="fw-bold text-charcoal">No maintenance logs</h4>
+            <p class="text-secondary-gray">Start tracking your vehicle maintenance history here.</p>
+            <button class="btn btn-primary-custom mt-2" data-bs-toggle="modal" data-bs-target="#addMaintenanceModal">
+                <i class="fa-solid fa-plus me-2"></i>Add First Entry
+            </button>
+        </div>
+    </div>
+
+    <!-- Add Maintenance Modal -->
+    <div class="modal fade" id="addMaintenanceModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title fw-bold">Log New Maintenance</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="addMaintenanceForm">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-medium small">Vehicle</label>
+                                <select id="mVehicle" class="form-select form-control-custom" required>
+                                    <option value="">Select vehicle</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-medium small">Service Type</label>
+                                <select id="mType" class="form-select form-control-custom" required>
+                                    <option value="">Select type</option>
+                                    <option value="Oil Change">Oil Change</option>
+                                    <option value="Tyre Replacement">Tyre Replacement</option>
+                                    <option value="Brake Service">Brake Service</option>
+                                    <option value="Engine Repair">Engine Repair</option>
+                                    <option value="Body Repair">Body Repair</option>
+                                    <option value="AC Service">AC Service</option>
+                                    <option value="General Service">General Service</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-medium small">Description</label>
+                                <textarea id="mDesc" class="form-control form-control-custom" rows="3"
+                                    placeholder="Describe the work done..." required></textarea>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-medium small">Cost (₹)</label>
+                                <input type="number" id="mCost" class="form-control form-control-custom" placeholder="e.g. 2500" min="0" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-medium small">Service Date</label>
+                                <input type="date" id="mDate" class="form-control form-control-custom" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-medium small">Status</label>
+                                <select id="mStatus" class="form-select form-control-custom">
+                                    <option value="Completed">Completed</option>
+                                    <option value="In Progress">In Progress</option>
+                                    <option value="Scheduled">Scheduled</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div id="mMsg" class="alert d-none mt-3 mb-0"></div>
+                    </form>
+                </div>
+                <div class="modal-footer border-0 pt-0">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary-custom fw-medium px-4" id="saveMaintBtn" onclick="saveMaintenanceLog()">
+                        <span id="saveBtnText">Save Log</span>
+                        <span id="saveSpinner" class="spinner-border spinner-border-sm d-none ms-2"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase + Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+    <script src="../js/firebase-config.js"></script>
+    <script src="../js/db.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        let currentUser = null;
+        let ownerVehicles = [];
+        const addModal = new bootstrap.Modal(document.getElementById('addMaintenanceModal'));
+
+        function statusBadge(s) {
+            const map = { 'Completed': 'badge-success', 'In Progress': 'badge-warning', 'Scheduled': 'badge-neutral' };
+            return `<span class="badge-custom ${map[s] || 'badge-neutral'}">${s}</span>`;
+        }
+
+        async function init() {
+            currentUser = await Auth.requireRole('owner');
+
+            try {
+                // Load owner's vehicles for the dropdown
+                ownerVehicles = await DB.getVehiclesByOwner(currentUser.uid);
+                const vSelect = document.getElementById('mVehicle');
+                ownerVehicles.forEach(v => {
+                    const opt = document.createElement('option');
+                    opt.value = v.id;
+                    opt.textContent = `${v.brand} ${v.model} (${v.regNo})`;
+                    vSelect.appendChild(opt);
+                });
+
+                // Set default date to today
+                document.getElementById('mDate').valueAsDate = new Date();
+
+                // Load maintenance logs
+                const logs = await DB.getMaintenanceByOwner(currentUser.uid);
+                document.getElementById('loadingIndicator').style.display = 'none';
+
+                if (logs.length === 0) {
+                    document.getElementById('emptyState').classList.remove('d-none');
+                    return;
+                }
+
+                // Sort newest first
+                logs.sort((a, b) => new Date(b.serviceDate) - new Date(a.serviceDate));
+
+                // Stats
+                const totalCost = logs.reduce((s, l) => s + (parseFloat(l.cost) || 0), 0);
+                const byVehicle = {};
+                logs.forEach(l => {
+                    const v = ownerVehicles.find(v => v.id === l.vehicleId);
+                    const vName = v ? `${v.brand} ${v.model}` : 'Unknown';
+                    byVehicle[vName] = (byVehicle[vName] || 0) + (parseFloat(l.cost) || 0);
+                });
+                const topVehicle = Object.entries(byVehicle).sort((a,b) => b[1]-a[1])[0];
+
+                document.getElementById('statsRow').innerHTML = `
+                    <div class="col-md-4">
+                        <div class="stat-card shadow-sm border-0 h-100">
+                            <div class="stat-card-icon stat-icon-orange"><i class="fa-solid fa-wrench"></i></div>
+                            <div class="stat-card-info">
+                                <h3>${logs.length}</h3>
+                                <p class="text-secondary-gray small fw-medium mb-0">Total Service Entries</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="stat-card shadow-sm border-0 h-100">
+                            <div class="stat-card-icon" style="background:#FEF3C7;color:#D97706;"><i class="fa-solid fa-indian-rupee-sign"></i></div>
+                            <div class="stat-card-info">
+                                <h3>₹${totalCost.toLocaleString()}</h3>
+                                <p class="text-secondary-gray small fw-medium mb-0">Total Maintenance Cost</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="stat-card shadow-sm border-0 h-100">
+                            <div class="stat-card-icon stat-icon-blue"><i class="fa-solid fa-car"></i></div>
+                            <div class="stat-card-info">
+                                <h3 style="font-size:1.1rem;">${topVehicle ? topVehicle[0] : 'N/A'}</h3>
+                                <p class="text-secondary-gray small fw-medium mb-0">Most Serviced Vehicle</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                // Table
+                const tbody = document.getElementById('logsTableBody');
+                let html = '';
+                logs.forEach(l => {
+                    const v = ownerVehicles.find(v => v.id === l.vehicleId);
+                    const vName = v ? `${v.brand} ${v.model}` : 'Unknown';
+                    html += `
+                        <tr>
+                            <td class="fw-medium">${vName}</td>
+                            <td>${l.type}</td>
+                            <td class="text-secondary-gray" style="max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${l.description}</td>
+                            <td class="fw-bold text-primary">₹${parseFloat(l.cost).toLocaleString()}</td>
+                            <td>${l.serviceDate}</td>
+                            <td>${statusBadge(l.status)}</td>
+                        </tr>
+                    `;
+                });
+                tbody.innerHTML = html;
+
+                document.getElementById('logsContainer').style.display = 'block';
+
+            } catch (err) {
+                console.error("Maintenance load error:", err);
+                document.getElementById('loadingIndicator').innerHTML = '<div class="alert alert-danger">Error loading maintenance data.</div>';
+            }
+        }
+
+        window.saveMaintenanceLog = async function() {
+            const vehicleId = document.getElementById('mVehicle').value;
+            const type = document.getElementById('mType').value;
+            const desc = document.getElementById('mDesc').value.trim();
+            const cost = document.getElementById('mCost').value;
+            const date = document.getElementById('mDate').value;
+            const status = document.getElementById('mStatus').value;
+            const mMsg = document.getElementById('mMsg');
+            const btn = document.getElementById('saveMaintBtn');
+            const btnText = document.getElementById('saveBtnText');
+            const spinner = document.getElementById('saveSpinner');
+
+            mMsg.classList.add('d-none');
+
+            if (!vehicleId || !type || !desc || !cost || !date) {
+                mMsg.className = 'alert alert-danger mt-3 mb-0';
+                mMsg.innerHTML = 'All fields are required.';
+                mMsg.classList.remove('d-none');
+                return;
+            }
+
+            btn.disabled = true;
+            btnText.textContent = 'Saving...';
+            spinner.classList.remove('d-none');
+
+            const logData = {
+                ownerId: currentUser.uid,
+                vehicleId: vehicleId,
+                type: type,
+                description: desc,
+                cost: parseFloat(cost),
+                serviceDate: date,
+                status: status,
+                createdAt: new Date().toISOString()
+            };
+
+            try {
+                await DB.addMaintenance(logData);
+                addModal.hide();
+                window.location.reload();
+            } catch (err) {
+                mMsg.className = 'alert alert-danger mt-3 mb-0';
+                mMsg.innerHTML = 'Failed to save. Please try again.';
+                mMsg.classList.remove('d-none');
+                btn.disabled = false;
+                btnText.textContent = 'Save Log';
+                spinner.classList.add('d-none');
+            }
+        };
+
+        init();
+    </script>
+</body>
+</html>

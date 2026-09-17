@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - RentRide</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/components.css">
+</head>
+<body class="d-flex align-items-center justify-content-center min-vh-100 py-5">
+
+    <div class="card card-custom p-4 p-md-5 shadow" style="max-width: 520px; width: 100%;">
+        <div class="text-center mb-4">
+            <div class="mb-3">
+                <i class="fa-solid fa-car-side fs-1" style="color: var(--primary-blue);"></i>
+            </div>
+            <h2 class="fw-bold" style="color: var(--charcoal);">Create Account</h2>
+            <p class="text-secondary-gray">Join RentRide today</p>
+        </div>
+        
+        <form id="registerForm">
+            <!-- Role Selection -->
+            <div class="mb-4">
+                <label class="form-label fw-medium d-block">I want to register as:</label>
+                <div class="btn-group w-100" role="group">
+                    <input type="radio" class="btn-check" name="roleType" id="roleUser" value="user" checked>
+                    <label class="btn btn-outline-primary" for="roleUser"><i class="fa-solid fa-user me-1"></i> Renter (User)</label>
+                    <input type="radio" class="btn-check" name="roleType" id="roleOwner" value="owner">
+                    <label class="btn btn-outline-primary" for="roleOwner"><i class="fa-solid fa-car me-1"></i> Vehicle Owner</label>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label fw-medium">Full Name <span class="text-danger">*</span></label>
+                <input type="text" id="regName" class="form-control form-control-custom" placeholder="John Doe" required>
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label fw-medium">Email Address <span class="text-danger">*</span></label>
+                <input type="email" id="regEmail" class="form-control form-control-custom" placeholder="name@example.com" required>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label fw-medium">Phone Number <span class="text-danger">*</span></label>
+                <input type="tel" id="regPhone" class="form-control form-control-custom" placeholder="9876543210" pattern="[0-9]{10}" title="Enter 10 digit mobile number" required>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label fw-medium">Date of Birth <span class="text-danger">*</span></label>
+                <input type="date" id="regDob" class="form-control form-control-custom" required>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label fw-medium">Address</label>
+                <textarea id="regAddress" class="form-control form-control-custom" rows="2" placeholder="Your address"></textarea>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label fw-medium">Password <span class="text-danger">*</span></label>
+                    <input type="password" id="regPassword" class="form-control form-control-custom" placeholder="Min 6 characters" minlength="6" required>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label fw-medium">Confirm Password <span class="text-danger">*</span></label>
+                    <input type="password" id="regConfirmPassword" class="form-control form-control-custom" placeholder="Repeat password" required>
+                </div>
+            </div>
+
+            <div id="regMsg" class="alert d-none p-2 mb-3 text-center" style="font-size: 0.875rem;"></div>
+            
+            <button type="submit" class="btn btn-primary-custom w-100 mb-3 py-2" id="regBtn">
+                <span id="regBtnText">Create Account</span>
+                <span id="regSpinner" class="spinner-border spinner-border-sm d-none ms-2" role="status"></span>
+            </button>
+            
+            <div class="text-center">
+                <p class="mb-0 text-secondary-gray" style="font-size: 0.875rem;">Already have an account? <a href="login.html" class="fw-medium">Login here</a></p>
+            </div>
+        </form>
+    </div>
+
+    <!-- Firebase CDN -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+    <script src="js/firebase-config.js"></script>
+    <script src="js/db.js"></script>
+    <script src="js/auth.js"></script>
+    <script>
+        document.getElementById('registerForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const name = document.getElementById('regName').value.trim();
+            const email = document.getElementById('regEmail').value.trim();
+            const phone = document.getElementById('regPhone').value.trim();
+            const dob = document.getElementById('regDob').value;
+            const address = document.getElementById('regAddress').value.trim();
+            const password = document.getElementById('regPassword').value;
+            const confirm = document.getElementById('regConfirmPassword').value;
+            const role = document.querySelector('input[name="roleType"]:checked').value;
+            
+            const msgBox = document.getElementById('regMsg');
+            const btn = document.getElementById('regBtn');
+            const btnText = document.getElementById('regBtnText');
+            const spinner = document.getElementById('regSpinner');
+
+            msgBox.classList.add('d-none');
+
+            // Validations
+            if (password !== confirm) {
+                msgBox.className = 'alert alert-danger p-2 mb-3 text-center';
+                msgBox.innerHTML = '<i class="fa-solid fa-circle-exclamation me-1"></i>Passwords do not match.';
+                msgBox.style.fontSize = '0.875rem';
+                msgBox.classList.remove('d-none');
+                return;
+            }
+
+            if (password.length < 6) {
+                msgBox.className = 'alert alert-danger p-2 mb-3 text-center';
+                msgBox.innerHTML = '<i class="fa-solid fa-circle-exclamation me-1"></i>Password must be at least 6 characters.';
+                msgBox.style.fontSize = '0.875rem';
+                msgBox.classList.remove('d-none');
+                return;
+            }
+
+            if (!dob) {
+                msgBox.className = 'alert alert-danger p-2 mb-3 text-center';
+                msgBox.innerHTML = '<i class="fa-solid fa-circle-exclamation me-1"></i>Date of birth is required.';
+                msgBox.style.fontSize = '0.875rem';
+                msgBox.classList.remove('d-none');
+                return;
+            }
+
+            btn.disabled = true;
+            btnText.textContent = 'Creating Account...';
+            spinner.classList.remove('d-none');
+
+            try {
+                await Auth.register(name, email, phone, dob, password, role, address);
+
+                msgBox.className = 'alert alert-success p-2 mb-3 text-center';
+                msgBox.innerHTML = '<i class="fa-solid fa-circle-check me-1"></i>Registration successful! Redirecting to login...';
+                msgBox.style.fontSize = '0.875rem';
+                msgBox.classList.remove('d-none');
+
+                setTimeout(() => {
+                    window.location.href = 'login.html';
+                }, 1500);
+            } catch (err) {
+                let msg = 'Registration failed.';
+                if (err.code === 'auth/email-already-in-use') msg = 'This email is already registered.';
+                else if (err.code === 'auth/weak-password') msg = 'Password is too weak. Use at least 6 characters.';
+                else if (err.code === 'auth/invalid-email') msg = 'Invalid email address.';
+                else if (err.message) msg = err.message;
+
+                msgBox.className = 'alert alert-danger p-2 mb-3 text-center';
+                msgBox.innerHTML = '<i class="fa-solid fa-circle-exclamation me-1"></i>' + msg;
+                msgBox.style.fontSize = '0.875rem';
+                msgBox.classList.remove('d-none');
+
+                btn.disabled = false;
+                btnText.textContent = 'Create Account';
+                spinner.classList.add('d-none');
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Users - Admin - RentRide</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/components.css">
+</head>
+<body class="bg-light">
+
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-custom py-3" style="background-color: var(--charcoal);">
+        <div class="container">
+            <a class="navbar-brand fw-bold fs-4 text-white" href="dashboard.html">
+                <i class="fa-solid fa-car-side me-2"></i>RentRide <span class="badge bg-danger ms-2 fs-6">Admin</span>
+            </a>
+            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon" style="filter: invert(1);"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link text-white-50" href="dashboard.html">Overview</a></li>
+                    <li class="nav-item"><a class="nav-link active text-white" href="users.html">Users & Owners</a></li>
+                    <li class="nav-item"><a class="nav-link text-white-50" href="vehicles.html">Vehicles</a></li>
+                    <li class="nav-item"><a class="nav-link text-white-50" href="bookings.html">All Bookings</a></li>
+                    <li class="nav-item"><a class="nav-link text-white-50" href="payments.html">Payments</a></li>
+                </ul>
+                <div class="d-flex align-items-center">
+                    <button class="btn btn-sm btn-outline-light logout-btn"><i class="fa-solid fa-right-from-bracket me-1"></i>Logout</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container py-5">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="fw-bold mb-0">Platform Accounts</h2>
+        </div>
+
+        <ul class="nav nav-tabs mb-4" id="adminUserTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active fw-medium" id="renters-tab" data-bs-toggle="tab" data-bs-target="#renters" type="button">Renters (Users)</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link fw-medium" id="owners-tab" data-bs-toggle="tab" data-bs-target="#owners" type="button">Vehicle Owners</button>
+            </li>
+        </ul>
+
+        <div class="card card-custom shadow-sm">
+            <div class="p-4 border-bottom">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <input type="text" id="userSearch" class="form-control form-control-custom" placeholder="Search by name, email, or phone...">
+                    </div>
+                </div>
+            </div>
+            
+            <div id="loadingIndicator" class="text-center py-5">
+                <div class="spinner-border text-primary" role="status"></div>
+            </div>
+            
+            <div class="table-responsive" id="tableContainer" style="display: none;">
+                <table class="table mb-0 align-middle table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Name</th>
+                            <th>Contact Info</th>
+                            <th>Role</th>
+                            <th>Status</th>
+                            <th>Joined</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="usersTableBody">
+                        <!-- JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase + Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+    <script src="../js/firebase-config.js"></script>
+    <script src="../js/db.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        let allUsersData = [];
+        let currentTab = 'user'; // 'user' or 'owner'
+
+        async function init() {
+            await Auth.requireRole('admin');
+
+            try {
+                // Fetch all users from DB
+                const snapshot = await database.ref('users').once('value');
+                const data = snapshot.val() || {};
+                
+                allUsersData = Object.keys(data).map(uid => ({
+                    uid: uid,
+                    ...data[uid]
+                }));
+
+                // Default sort by created at desc if available, else name
+                allUsersData.sort((a, b) => {
+                    if(a.createdAt && b.createdAt) return new Date(b.createdAt) - new Date(a.createdAt);
+                    return a.name.localeCompare(b.name);
+                });
+
+                document.getElementById('loadingIndicator').style.display = 'none';
+                document.getElementById('tableContainer').style.display = 'block';
+                
+                renderUsers();
+            } catch (err) {
+                console.error(err);
+                document.getElementById('loadingIndicator').innerHTML = '<div class="alert alert-danger">Failed to load users.</div>';
+            }
+        }
+
+        function renderUsers() {
+            const searchStr = document.getElementById('userSearch').value.toLowerCase();
+            const tbody = document.getElementById('usersTableBody');
+            
+            // Filter by role and search string
+            const filtered = allUsersData.filter(u => {
+                const matchesRole = u.role === currentTab;
+                const matchesSearch = (u.name + ' ' + u.email + ' ' + (u.phone || '')).toLowerCase().includes(searchStr);
+                return matchesRole && matchesSearch;
+            });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5 text-secondary-gray">No accounts found matching criteria.</td></tr>';
+                return;
+            }
+
+            let html = '';
+            filtered.forEach(u => {
+                const joined = u.createdAt ? new Date(u.createdAt).toLocaleDateString() : 'N/A';
+                
+                // Active/Suspended logic (Mocked for UI, requires DB field 'status' in real implementation)
+                const isSuspended = u.status === 'Suspended';
+                const statusBadge = isSuspended 
+                    ? '<span class="badge bg-danger">Suspended</span>' 
+                    : '<span class="badge bg-success">Active</span>';
+                
+                const actionBtn = isSuspended
+                    ? `<button class="btn btn-sm btn-outline-success" onclick="toggleStatus('${u.uid}', 'Active')">Reactivate</button>`
+                    : `<button class="btn btn-sm btn-outline-danger" onclick="toggleStatus('${u.uid}', 'Suspended')">Suspend</button>`;
+
+                const roleBadge = u.role === 'owner' ? '<span class="badge bg-primary">Owner</span>' : '<span class="badge bg-info text-dark">Renter</span>';
+
+                html += `
+                    <tr>
+                        <td class="fw-medium">
+                            ${u.name}
+                            ${u.role === 'user' ? `<br><small class="text-secondary-gray">DOB: ${u.dob || 'N/A'}</small>` : ''}
+                        </td>
+                        <td>
+                            <div><i class="fa-regular fa-envelope me-1 text-secondary-gray small"></i>${u.email}</div>
+                            ${u.phone ? `<div><i class="fa-solid fa-phone me-1 text-secondary-gray small"></i>${u.phone}</div>` : ''}
+                        </td>
+                        <td>${roleBadge}</td>
+                        <td>${statusBadge}</td>
+                        <td>${joined}</td>
+                        <td>${actionBtn}</td>
+                    </tr>
+                `;
+            });
+            
+            tbody.innerHTML = html;
+        }
+
+        window.toggleStatus = async function(uid, newStatus) {
+            const verb = newStatus === 'Suspended' ? 'suspend' : 'reactivate';
+            if (confirm(`Are you sure you want to ${verb} this account?`)) {
+                try {
+                    await database.ref(`users/${uid}`).update({ status: newStatus });
+                    
+                    // Update local cache
+                    const user = allUsersData.find(u => u.uid === uid);
+                    if (user) user.status = newStatus;
+                    
+                    renderUsers();
+                } catch (err) {
+                    alert("Failed to update status.");
+                }
+            }
+        };
+
+        // Event Listeners
+        document.getElementById('userSearch').addEventListener('input', renderUsers);
+        
+        document.getElementById('renters-tab').addEventListener('shown.bs.tab', () => {
+            currentTab = 'user';
+            renderUsers();
+        });
+        
+        document.getElementById('owners-tab').addEventListener('shown.bs.tab', () => {
+            currentTab = 'owner';
+            renderUsers();
+        });
+
+        init();
+    </script>
+</body>
+</html>

@@ -1,0 +1,116 @@
+/* css/style.css */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+    /* Main Color Palette */
+    --bg-color: #F8FAFC;
+    --light-gray: #E5E7EB;
+    --gray: #9CA3AF;
+    --dark-gray: #374151;
+    --charcoal: #1F2937;
+    --primary-blue: #3B82F6;
+    --success-green: #22C55E;
+    --danger-red: #EF4444;
+    --warning-orange: #F59E0B;
+    --input-border: #CBD5E1;
+    --white: #FFFFFF;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-color);
+    color: var(--dark-gray);
+    margin: 0;
+    padding: 0;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    color: var(--charcoal);
+    font-weight: 600;
+}
+
+p, span, div {
+    color: var(--dark-gray);
+}
+
+.text-secondary-gray {
+    color: var(--gray) !important;
+}
+
+/* Navbar */
+.navbar-custom {
+    background-color: var(--charcoal);
+}
+
+.navbar-custom .navbar-brand,
+.navbar-custom .nav-link {
+    color: var(--white);
+}
+
+.navbar-custom .nav-link:hover {
+    color: var(--primary-blue);
+}
+
+/* Primary Button */
+.btn-primary-custom {
+    background-color: var(--primary-blue);
+    border-color: var(--primary-blue);
+    color: var(--white);
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.btn-primary-custom:hover {
+    background-color: #2563EB; /* Slightly darker blue */
+    border-color: #2563EB;
+    color: var(--white);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.3);
+}
+
+/* Secondary Button */
+.btn-secondary-custom {
+    background-color: var(--white);
+    border: 1px solid var(--light-gray);
+    color: var(--charcoal);
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.btn-secondary-custom:hover {
+    background-color: var(--bg-color);
+    color: var(--primary-blue);
+    border-color: var(--primary-blue);
+}
+
+/* Links */
+a {
+    color: var(--primary-blue);
+    text-decoration: none;
+}
+a:hover {
+    color: #2563EB;
+    text-decoration: underline;
+}
+
+/* Inputs */
+.form-control-custom {
+    border: 1px solid var(--input-border);
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 1rem;
+    color: var(--dark-gray);
+    background-color: var(--white);
+}
+.form-control-custom:focus {
+    border-color: var(--primary-blue);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+    outline: none;
+}
+.form-control-custom::placeholder {
+    color: var(--gray);
+}

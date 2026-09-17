@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vehicle Details - RentRide</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/components.css">
+</head>
+<body class="bg-light">
+
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-custom py-3">
+        <div class="container">
+            <a class="navbar-brand fw-bold fs-4" href="dashboard.html"><i class="fa-solid fa-car-side me-2"></i>RentRide</a>
+            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon" style="filter: invert(1);"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="dashboard.html">Dashboard</a></li>
+                    <li class="nav-item"><a class="nav-link active" href="browse.html">Browse Vehicles</a></li>
+                    <li class="nav-item"><a class="nav-link" href="bookings.html">My Bookings</a></li>
+                </ul>
+                <div class="d-flex align-items-center">
+                    <button class="btn btn-sm btn-outline-light logout-btn"><i class="fa-solid fa-right-from-bracket me-1"></i>Logout</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container py-5" id="mainContainer" style="display: none;">
+        <!-- Breadcrumb -->
+        <nav aria-label="breadcrumb" class="mb-4">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="browse.html" class="text-decoration-none text-primary fw-medium">Browse</a></li>
+                <li class="breadcrumb-item active" aria-current="page" id="bcVehicleName">Vehicle</li>
+            </ol>
+        </nav>
+
+        <div class="row g-5">
+            <!-- Left Column: Details -->
+            <div class="col-lg-8">
+                <!-- Main Image -->
+                <div class="card card-custom mb-4 overflow-hidden shadow-sm">
+                    <img id="vImage" src="" class="w-100" alt="Vehicle Image" style="height: 450px; object-fit: cover;">
+                </div>
+
+                <!-- Info Header -->
+                <div class="d-flex justify-content-between align-items-start mb-4">
+                    <div>
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <span class="badge bg-primary px-3 py-2 rounded-pill shadow-sm" id="vType"></span>
+                            <span class="badge bg-light text-dark border px-3 py-2 rounded-pill" id="vYear"></span>
+                        </div>
+                        <h1 class="fw-bold mb-1" id="vName">Vehicle Name</h1>
+                        <p class="text-secondary-gray"><i class="fa-solid fa-location-dot me-2"></i><span id="vLocation">Location</span></p>
+                    </div>
+                    <div class="text-end">
+                        <h2 class="text-primary fw-bold mb-0">₹<span id="vPrice">0</span></h2>
+                        <span class="text-secondary-gray">per day</span>
+                    </div>
+                </div>
+
+                <!-- Specs -->
+                <div class="card card-custom p-4 mb-4 shadow-sm">
+                    <h5 class="fw-bold mb-4 border-bottom pb-2">Specifications</h5>
+                    <div class="row g-4">
+                        <div class="col-6 col-md-3">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="bg-light p-3 rounded-circle text-primary"><i class="fa-solid fa-gas-pump fa-lg"></i></div>
+                                <div><p class="mb-0 text-secondary-gray small">Fuel</p><h6 class="fw-bold mb-0" id="vFuel">Petrol</h6></div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="bg-light p-3 rounded-circle text-primary"><i class="fa-solid fa-gears fa-lg"></i></div>
+                                <div><p class="mb-0 text-secondary-gray small">Transmission</p><h6 class="fw-bold mb-0" id="vTrans">Auto</h6></div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="bg-light p-3 rounded-circle text-primary"><i class="fa-solid fa-users fa-lg"></i></div>
+                                <div><p class="mb-0 text-secondary-gray small">Seats</p><h6 class="fw-bold mb-0" id="vSeats">5</h6></div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="bg-light p-3 rounded-circle text-primary"><i class="fa-solid fa-hashtag fa-lg"></i></div>
+                                <div><p class="mb-0 text-secondary-gray small">Reg No.</p><h6 class="fw-bold mb-0" id="vReg">MH12</h6></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Description -->
+                <div class="card card-custom p-4 shadow-sm mb-4">
+                    <h5 class="fw-bold mb-3 border-bottom pb-2">Description</h5>
+                    <p class="text-secondary-gray" id="vDesc" style="line-height: 1.6;">No description provided.</p>
+                </div>
+            </div>
+
+            <!-- Right Column: Booking Widget -->
+            <div class="col-lg-4">
+                <div class="card card-custom p-4 shadow sticky-top" style="top: 2rem;">
+                    <h4 class="fw-bold border-bottom pb-3 mb-4">Book this vehicle</h4>
+                    
+                    <form id="bookingForm">
+                        <div class="mb-3">
+                            <label class="form-label fw-medium text-secondary-gray">Pickup Date</label>
+                            <input type="date" id="startDate" class="form-control form-control-custom" required>
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label fw-medium text-secondary-gray">Drop-off Date</label>
+                            <input type="date" id="endDate" class="form-control form-control-custom" required>
+                        </div>
+
+                        <!-- 18+ Verification & Docs -->
+                        <div class="border rounded p-3 bg-light mb-4">
+                            <h6 class="fw-bold mb-3 text-charcoal"><i class="fa-solid fa-id-card me-2"></i>Verification (18+ Required)</h6>
+                            <div class="mb-3">
+                                <label class="form-label fw-medium small">Driving License Number</label>
+                                <input type="text" id="licenseNum" class="form-control form-control-sm form-control-custom" placeholder="e.g. MH1220110012345" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-medium small">License Expiry Date</label>
+                                <input type="date" id="licenseExp" class="form-control form-control-sm form-control-custom" required>
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label fw-medium small">Aadhaar Number</label>
+                                <input type="text" id="aadhaarNum" class="form-control form-control-sm form-control-custom" placeholder="12 Digit Number" pattern="[0-9]{12}" required>
+                                <div class="form-text" style="font-size: 0.75rem;">Your Aadhaar will be masked securely.</div>
+                            </div>
+                        </div>
+
+                        <!-- Pricing Summary -->
+                        <div id="priceSummary" class="d-none bg-light p-3 rounded mb-4 border">
+                            <div class="d-flex justify-content-between mb-2">
+                                <span class="text-secondary-gray" id="calcDays">0 days</span>
+                                <span class="fw-medium">₹<span id="calcSub">0</span></span>
+                            </div>
+                            <hr class="my-2">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="fw-bold">Total Amount</span>
+                                <h4 class="fw-bold text-primary mb-0">₹<span id="calcTotal">0</span></h4>
+                            </div>
+                        </div>
+
+                        <div id="bookingMsg" class="alert d-none p-2 text-center" style="font-size: 0.875rem;"></div>
+
+                        <button type="submit" class="btn btn-primary-custom w-100 py-3 fw-bold fs-5 shadow-sm" id="bookBtn">
+                            <span id="bookBtnText">Check Availability & Book</span>
+                            <span id="bookSpinner" class="spinner-border spinner-border-sm d-none ms-2" role="status"></span>
+                        </button>
+                    </form>
+                    
+                    <div class="text-center mt-3">
+                        <small class="text-secondary-gray"><i class="fa-solid fa-lock me-1"></i>Secure booking process.</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading -->
+    <div id="pageLoader" class="d-flex justify-content-center align-items-center min-vh-100">
+        <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>
+    </div>
+
+    <!-- Firebase + Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+    <script src="../js/firebase-config.js"></script>
+    <script src="../js/db.js"></script>
+    <script src="../js/auth.js"></script>
+    <script>
+        let currentUser = null;
+        let currentVehicle = null;
+
+        async function init() {
+            currentUser = await Auth.requireRole('user');
+            
+            const params = new URLSearchParams(window.location.search);
+            const vid = params.get('id');
+            
+            if (!vid) {
+                alert("No vehicle specified.");
+                window.location.href = 'browse.html';
+                return;
+            }
+
+            currentVehicle = await DB.getVehicle(vid);
+            if (!currentVehicle || currentVehicle.status !== 'Available') {
+                alert("This vehicle is no longer available.");
+                window.location.href = 'browse.html';
+                return;
+            }
+
+            // Populate UI
+            document.getElementById('bcVehicleName').textContent = currentVehicle.brand + ' ' + currentVehicle.model;
+            document.getElementById('vName').textContent = currentVehicle.brand + ' ' + currentVehicle.model;
+            document.getElementById('vType').textContent = currentVehicle.type;
+            document.getElementById('vYear').textContent = currentVehicle.year || 'N/A';
+            document.getElementById('vLocation').textContent = currentVehicle.location;
+            document.getElementById('vPrice').textContent = currentVehicle.price.toLocaleString();
+            document.getElementById('vFuel').textContent = currentVehicle.fuelType;
+            document.getElementById('vTrans').textContent = currentVehicle.transmission;
+            document.getElementById('vSeats').textContent = currentVehicle.seats;
+            document.getElementById('vReg').textContent = currentVehicle.regNo;
+            document.getElementById('vDesc').textContent = currentVehicle.description || 'No description provided.';
+            if (currentVehicle.imageUrl) document.getElementById('vImage').src = currentVehicle.imageUrl;
+
+            // Set min dates
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('startDate').min = today;
+            document.getElementById('endDate').min = today;
+
+            // Show page
+            document.getElementById('pageLoader').style.display = 'none';
+            document.getElementById('mainContainer').style.display = 'block';
+        }
+
+        // Live calculation
+        function calculatePrice() {
+            const s = document.getElementById('startDate').value;
+            const e = document.getElementById('endDate').value;
+            const summary = document.getElementById('priceSummary');
+            
+            if (s && e) {
+                const start = new Date(s);
+                const end = new Date(e);
+                start.setHours(0,0,0,0);
+                end.setHours(0,0,0,0);
+                
+                let diffTime = end - start;
+                if (diffTime >= 0) {
+                    let diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // Inclusive days
+                    let total = diffDays * currentVehicle.price;
+                    
+                    document.getElementById('calcDays').textContent = `${diffDays} days x ₹${currentVehicle.price}`;
+                    document.getElementById('calcSub').textContent = total.toLocaleString();
+                    document.getElementById('calcTotal').textContent = total.toLocaleString();
+                    summary.classList.remove('d-none');
+                    return { days: diffDays, total: total };
+                }
+            }
+            summary.classList.add('d-none');
+            return null;
+        }
+
+        document.getElementById('startDate').addEventListener('change', calculatePrice);
+        document.getElementById('endDate').addEventListener('change', calculatePrice);
+
+        // Submit Booking
+        document.getElementById('bookingForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const msgBox = document.getElementById('bookingMsg');
+            const btn = document.getElementById('bookBtn');
+            const btnText = document.getElementById('bookBtnText');
+            const spinner = document.getElementById('bookSpinner');
+
+            msgBox.classList.add('d-none');
+
+            // 1. Age Verification Check
+            if (!Auth.checkAge18(currentUser.dob)) {
+                msgBox.className = 'alert alert-danger p-2 text-center';
+                msgBox.innerHTML = '<i class="fa-solid fa-ban me-1"></i>Vehicle rental is available only for users aged 18 and above.';
+                msgBox.classList.remove('d-none');
+                return;
+            }
+
+            const calc = calculatePrice();
+            if (!calc) {
+                msgBox.className = 'alert alert-danger p-2 text-center';
+                msgBox.innerHTML = 'Invalid dates selected.';
+                msgBox.classList.remove('d-none');
+                return;
+            }
+
+            const sDate = document.getElementById('startDate').value;
+            const eDate = document.getElementById('endDate').value;
+
+            btn.disabled = true;
+            btnText.textContent = 'Checking...';
+            spinner.classList.remove('d-none');
+
+            // 2. Date Overlap Check via DB
+            const isAvailable = await DB.checkAvailability(currentVehicle.id, sDate, eDate);
+            
+            if (!isAvailable) {
+                msgBox.className = 'alert alert-danger p-2 text-center';
+                msgBox.innerHTML = '<i class="fa-solid fa-calendar-xmark me-1"></i>Vehicle is NOT AVAILABLE for the selected dates. Please choose different dates.';
+                msgBox.classList.remove('d-none');
+                
+                btn.disabled = false;
+                btnText.textContent = 'Check Availability & Book';
+                spinner.classList.add('d-none');
+                return;
+            }
+
+            // 3. Create Booking (Status: Pending Owner Approval)
+            const licenseNum = document.getElementById('licenseNum').value.trim();
+            const licenseExp = document.getElementById('licenseExp').value;
+            const aadhaarNum = document.getElementById('aadhaarNum').value.trim();
+
+            const bookingData = {
+                userId: currentUser.uid,
+                ownerId: currentVehicle.ownerId,
+                vehicleId: currentVehicle.id,
+                startDate: sDate,
+                endDate: eDate,
+                days: calc.days,
+                pricePerDay: currentVehicle.price,
+                totalAmount: calc.total,
+                status: 'Pending', // Needs owner approval
+                paymentStatus: 'Pending',
+                licenseNumber: Auth.maskLicense(licenseNum),
+                licenseExpiry: licenseExp,
+                aadhaarLast4: Auth.maskAadhaar(aadhaarNum),
+                createdAt: new Date().toISOString()
+            };
+
+            try {
+                const bookingId = await DB.addBooking(bookingData);
+                
+                msgBox.className = 'alert alert-success p-2 text-center';
+                msgBox.innerHTML = '<i class="fa-solid fa-circle-check me-1"></i>Booking request sent to owner! Redirecting to payment...';
+                msgBox.classList.remove('d-none');
+
+                // Redirect to mock payment page
+                setTimeout(() => {
+                    window.location.href = `payment.html?bookingId=${bookingId}`;
+                }, 1500);
+            } catch (err) {
+                msgBox.className = 'alert alert-danger p-2 text-center';
+                msgBox.innerHTML = 'Error saving booking. Try again.';
+                msgBox.classList.remove('d-none');
+                btn.disabled = false;
+                btnText.textContent = 'Check Availability & Book';
+                spinner.classList.add('d-none');
+            }
+        });
+
+        init();
+    </script>
+</body>
+</html>

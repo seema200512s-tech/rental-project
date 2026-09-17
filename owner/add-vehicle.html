@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add Vehicle - Owner - RentRide</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/components.css">
+    <style>
+        .image-preview-container {
+            border: 2px dashed var(--input-border);
+            border-radius: 12px;
+            height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: var(--light-gray);
+            overflow: hidden;
+            position: relative;
+            cursor: pointer;
+        }
+        .image-preview-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 10;
+            display: none;
+        }
+        .image-preview-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 20;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .image-preview-container:hover .image-preview-overlay {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body class="bg-light">
+
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-custom py-3">
+        <div class="container">
+            <a class="navbar-brand fw-bold fs-4" href="dashboard.html">
+                <i class="fa-solid fa-car-side me-2"></i>RentRide <span class="badge bg-primary ms-2 fs-6">Owner</span>
+            </a>
+            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon" style="filter: invert(1);"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="dashboard.html">Dashboard</a></li>
+                    <li class="nav-item"><a class="nav-link active" href="add-vehicle.html">Add Vehicle</a></li>
+                    <li class="nav-item"><a class="nav-link" href="manage-vehicles.html">My Vehicles</a></li>
+                    <li class="nav-item"><a class="nav-link" href="bookings.html">Booking Requests</a></li>
+                    <li class="nav-item"><a class="nav-link" href="earnings.html">Earnings</a></li>
+                </ul>
+                <div class="d-flex align-items-center">
+                    <button class="btn btn-sm btn-outline-light logout-btn"><i class="fa-solid fa-right-from-bracket me-1"></i>Logout</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-lg-9">
+                <div class="card card-custom p-4 p-md-5 shadow">
+                    <h3 class="fw-bold mb-4 border-bottom pb-3">Add New Vehicle</h3>
+                    
+                    <div id="addMsg" class="alert d-none mb-4"></div>
+
+                    <form id="addVehicleForm">
+                        <div class="row g-4">
+                            <!-- Image Upload Section -->
+                            <div class="col-12 mb-2">
+                                <label class="form-label fw-bold">Vehicle Image (Required)</label>
+                                <div class="image-preview-container" id="imageContainer">
+                                    <div class="text-center z-1 text-secondary-gray" id="uploadPrompt">
+                                        <i class="fa-solid fa-cloud-arrow-up fa-3x mb-2 text-primary"></i>
+                                        <p class="mb-0 fw-medium">Click to upload vehicle photo</p>
+                                        <small>PNG, JPG up to 5MB</small>
+                                    </div>
+                                    <img id="imagePreview" alt="Preview">
+                                    <div class="image-preview-overlay">
+                                        <span class="fw-medium"><i class="fa-solid fa-pen me-2"></i>Change Image</span>
+                                    </div>
+                                    <input type="file" id="vImageFile" class="d-none" accept="image/png, image/jpeg" required>
+                                </div>
+                            </div>
+                            
+                            <div class="col-12 mb-2">
+                                <label class="form-label fw-bold">Vehicle Documents (Required)</label>
+                                <input type="file" id="vDocFile" class="form-control form-control-custom" accept="application/pdf, image/png, image/jpeg" required>
+                                <small class="text-secondary-gray">Upload RC Book, Insurance, or relevant documents (PDF/JPG/PNG).</small>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label fw-medium small">Vehicle Type</label>
+                                <select id="vType" class="form-select form-control-custom" required>
+                                    <option value="">Select Type</option>
+                                    <option value="Car">Car</option>
+                                    <option value="SUV">SUV</option>
+                                    <option value="Bike">Bike</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-medium small">Brand / Make</label>
+                                <input type="text" id="vBrand" class="form-control form-control-custom" placeholder="e.g. Honda, Royal Enfield" required>
+                            </div>
+                            
+                            <div class="col-md-4">
+                                <label class="form-label fw-medium small">Model</label>
+                                <input type="text" id="vModel" class="form-control form-control-custom" placeholder="e.g. City" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-medium small">Registration Number</label>
+                                <input type="text" id="vRegNo" class="form-control form-control-custom" placeholder="e.g. MH-12-AB-1234" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-medium small">Year</label>
+                                <input type="number" id="vYear" class="form-control form-control-custom" placeholder="YYYY" min="2000" max="2026" required>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label fw-medium small">Fuel Type</label>
+                                <select id="vFuel" class="form-select form-control-custom" required>
+                                    <option value="Petrol">Petrol</option>
+                                    <option value="Diesel">Diesel</option>
+                                    <option value="Electric">Electric</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-medium small">Transmission</label>
+                                <select id="vTrans" class="form-select form-control-custom" required>
+                                    <option value="Manual">Manual</option>
+                                    <option value="Automatic">Automatic</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-medium small">Seating Capacity</label>
+                                <input type="number" id="vSeats" class="form-control form-control-custom" min="1" max="15" required>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label fw-medium small">Rental Price (per day) ₹</label>
+                                <input type="number" id="vPrice" class="form-control form-control-custom" placeholder="e.g. 1800" min="100" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-medium small">Location (City)</label>
+                                <input type="text" id="vLocation" class="form-control form-control-custom" placeholder="e.g. Mumbai" required>
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label fw-medium small">Vehicle Description</label>
+                                <textarea id="vDesc" class="form-control form-control-custom" rows="3" placeholder="Condition, features, rules..." required></textarea>
+                            </div>
+                        </div>
+
+                        <div class="alert alert-warning mt-4 border-warning small">
+                            <i class="fa-solid fa-circle-info me-1"></i> Added vehicles are set to <strong>Pending Approval</strong> and will not be visible to users until the Admin approves them.
+                        </div>
+
+                        <div class="mt-4 pt-3 border-top text-end">
+                            <button type="submit" class="btn btn-primary-custom px-5 py-2 fw-bold" id="submitBtn">
+                                <span id="submitBtnText">Submit Vehicle</span>
+                                <span id="submitSpinner" class="spinner-border spinner-border-sm d-none ms-2" role="status"></span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase + Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+    <script src="../js/firebase-config.js"></script>
+    <script src="../js/db.js"></script>
+    <script src="../js/auth.js"></script>
+    
+    <script>
+        let currentUser = null;
+        let selectedFile = null;
+
+        async function init() {
+            currentUser = await Auth.requireRole('owner');
+        }
+
+        // Image Preview Logic
+        const imgContainer = document.getElementById('imageContainer');
+        const fileInput = document.getElementById('vImageFile');
+        const imgPreview = document.getElementById('imagePreview');
+        const prompt = document.getElementById('uploadPrompt');
+
+        imgContainer.addEventListener('click', () => fileInput.click());
+
+        fileInput.addEventListener('change', function() {
+            if (this.files && this.files[0]) {
+                selectedFile = this.files[0];
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    imgPreview.src = e.target.result;
+                    imgPreview.style.display = 'block';
+                    prompt.style.display = 'none';
+                }
+                reader.readAsDataURL(selectedFile);
+            }
+        });
+
+        // Form Submit
+        document.getElementById('addVehicleForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const btn = document.getElementById('submitBtn');
+            const btnText = document.getElementById('submitBtnText');
+            const spinner = document.getElementById('submitSpinner');
+            const msgBox = document.getElementById('addMsg');
+
+            const docInput = document.getElementById('vDocFile');
+
+            if (!selectedFile || !docInput.files[0]) {
+                msgBox.className = 'alert alert-danger mb-4';
+                msgBox.innerHTML = '<i class="fa-solid fa-triangle-exclamation me-2"></i>Please select both a vehicle image and document.';
+                msgBox.classList.remove('d-none');
+                return;
+            }
+            
+            btn.disabled = true;
+            btnText.textContent = 'Uploading...';
+            spinner.classList.remove('d-none');
+            msgBox.classList.add('d-none');
+
+            try {
+                // 1. Upload Image & Document to Firebase Storage
+                const fileName = `vehicles/${currentUser.uid}_${Date.now()}_${selectedFile.name}`;
+                const imageUrl = await DB.uploadImage(selectedFile, fileName);
+                
+                const docFile = docInput.files[0];
+                const docName = `documents/${currentUser.uid}_${Date.now()}_${docFile.name}`;
+                const docUrl = await DB.uploadImage(docFile, docName);
+
+                // 2. Save Vehicle to Realtime DB
+                const vehicleData = {
+                    ownerId: currentUser.uid,
+                    ownerName: currentUser.name,
+                    type: document.getElementById('vType').value,
+                    brand: document.getElementById('vBrand').value.trim(),
+                    model: document.getElementById('vModel').value.trim(),
+                    regNo: document.getElementById('vRegNo').value.trim().toUpperCase(),
+                    year: parseInt(document.getElementById('vYear').value),
+                    fuelType: document.getElementById('vFuel').value,
+                    transmission: document.getElementById('vTrans').value,
+                    seats: parseInt(document.getElementById('vSeats').value),
+                    price: parseInt(document.getElementById('vPrice').value),
+                    location: document.getElementById('vLocation').value.trim(),
+                    description: document.getElementById('vDesc').value.trim(),
+                    status: 'Pending Approval',
+                    imageUrl: imageUrl,
+                    documentUrl: docUrl,
+                    submittedAt: new Date().toISOString()
+                };
+
+                await DB.addVehicle(vehicleData);
+
+                msgBox.className = 'alert alert-success mb-4';
+                msgBox.innerHTML = '<i class="fa-solid fa-circle-check me-2"></i>Vehicle submitted successfully! It is pending admin approval.';
+                msgBox.classList.remove('d-none');
+                
+                // Reset form
+                this.reset();
+                selectedFile = null;
+                imgPreview.style.display = 'none';
+                prompt.style.display = 'block';
+
+            } catch (err) {
+                console.error(err);
+                msgBox.className = 'alert alert-danger mb-4';
+                msgBox.innerHTML = '<i class="fa-solid fa-triangle-exclamation me-2"></i>Failed to add vehicle. ' + err.message;
+                msgBox.classList.remove('d-none');
+            } finally {
+                btn.disabled = false;
+                btnText.textContent = 'Submit Vehicle';
+                spinner.classList.add('d-none');
+            }
+        });
+
+        init();
+    </script>
+</body>
+</html>

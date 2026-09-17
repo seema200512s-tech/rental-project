@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Booking Requests - Owner - RentRide</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/components.css">
+</head>
+<body class="bg-light">
+
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-custom py-3">
+        <div class="container">
+            <a class="navbar-brand fw-bold fs-4" href="dashboard.html">
+                <i class="fa-solid fa-car-side me-2"></i>RentRide <span class="badge bg-primary ms-2 fs-6">Owner</span>
+            </a>
+            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon" style="filter: invert(1);"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="dashboard.html">Dashboard</a></li>
+                    <li class="nav-item"><a class="nav-link" href="add-vehicle.html">Add Vehicle</a></li>
+                    <li class="nav-item"><a class="nav-link" href="manage-vehicles.html">My Vehicles</a></li>
+                    <li class="nav-item"><a class="nav-link active" href="bookings.html">Booking Requests</a></li>
+                    <li class="nav-item"><a class="nav-link" href="earnings.html">Earnings</a></li>
+                </ul>
+                <div class="d-flex align-items-center">
+                    <button class="btn btn-sm btn-outline-light logout-btn"><i class="fa-solid fa-right-from-bracket me-1"></i>Logout</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container py-5">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="fw-bold mb-0">Manage Bookings</h2>
+        </div>
+        
+        <ul class="nav nav-tabs mb-4" id="ownerBookingTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active fw-medium" id="pending-tab" data-bs-toggle="tab" data-bs-target="#pending" type="button">Pending Action</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link fw-medium" id="active-tab" data-bs-toggle="tab" data-bs-target="#active" type="button">Active / Confirmed</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link fw-medium" id="history-tab" data-bs-toggle="tab" data-bs-target="#history" type="button">History</button>
+            </li>
+        </ul>
+
+        <div class="tab-content">
+            <!-- Pending Requests -->
+            <div class="tab-pane fade show active" id="pending" role="tabpanel">
+                <div id="loadingPending" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></div>
+                <div class="row g-4" id="pendingGrid"></div>
+            </div>
+            
+            <!-- Active / Confirmed -->
+            <div class="tab-pane fade" id="active" role="tabpanel">
+                <div id="loadingActive" class="text-center py-5 d-none"><div class="spinner-border text-primary" role="status"></div></div>
+                <div class="row g-4" id="activeGrid"></div>
+            </div>
+
+            <!-- History -->
+            <div class="tab-pane fade" id="history" role="tabpanel">
+                <div id="loadingHistory" class="text-center py-5 d-none"><div class="spinner-border text-primary" role="status"></div></div>
+                <div class="row g-4" id="historyGrid"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase + Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+    <script src="../js/firebase-config.js"></script>
+    <script src="../js/db.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        let currentUser = null;
+        let allVehicles = [];
+        let allUsers = {}; // Cache users
+
+        function statusBadge(status) {
+            const map = {
+                'Pending': 'badge-warning', 'Accepted': 'badge-success', 'Confirmed': 'badge-success',
+                'Active': 'badge-success', 'Completed': 'badge-neutral', 'Rejected': 'badge-danger', 'Cancelled': 'badge-danger'
+            };
+            return `<span class="badge-custom ${map[status] || 'badge-neutral'}">${status}</span>`;
+        }
+
+        async function getUserCached(uid) {
+            if(allUsers[uid]) return allUsers[uid];
+            const u = await DB.getUser(uid);
+            allUsers[uid] = u;
+            return u;
+        }
+
+        async function init() {
+            currentUser = await Auth.requireRole('owner');
+            
+            try {
+                const bookings = await DB.getBookingsByOwner(currentUser.uid);
+                allVehicles = await DB.getVehiclesByOwner(currentUser.uid);
+                
+                // Sort newest first
+                bookings.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+                
+                const pending = bookings.filter(b => b.status === 'Pending' || (b.status === 'Accepted' && b.paymentStatus !== 'Paid'));
+                const active = bookings.filter(b => b.status === 'Confirmed' || b.status === 'Active');
+                const history = bookings.filter(b => ['Completed', 'Rejected', 'Cancelled'].includes(b.status));
+
+                await renderBookings(pending, 'pendingGrid', 'loadingPending', true);
+                await renderBookings(active, 'activeGrid', 'loadingActive', false);
+                await renderBookings(history, 'historyGrid', 'loadingHistory', false);
+                
+            } catch (err) {
+                console.error("Error loading owner bookings:", err);
+            }
+        }
+
+        async function renderBookings(bookings, gridId, loaderId, isPendingTab) {
+            const grid = document.getElementById(gridId);
+            const loader = document.getElementById(loaderId);
+            loader.classList.add('d-none');
+            
+            if (bookings.length === 0) {
+                grid.innerHTML = `
+                    <div class="col-12 text-center py-5">
+                        <i class="fa-solid fa-folder-open fa-3x text-light-gray mb-3"></i>
+                        <h5 class="text-secondary-gray fw-bold">No bookings found.</h5>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '';
+            for (const b of bookings) {
+                const vehicle = allVehicles.find(v => v.id === b.vehicleId);
+                const vName = vehicle ? `${vehicle.brand} ${vehicle.model}` : 'Unknown Vehicle';
+                
+                const user = await getUserCached(b.userId);
+                const uName = user ? user.name : 'Unknown User';
+                const uPhone = user ? user.phone : 'N/A';
+                
+                let actionArea = '';
+                if (b.status === 'Pending') {
+                    actionArea = `
+                        <div class="d-flex gap-2 mt-3">
+                            <button class="btn btn-sm btn-success flex-fill fw-bold" onclick="updateBookingStatus('${b.id}', 'Accepted')"><i class="fa-solid fa-check me-1"></i>Accept</button>
+                            <button class="btn btn-sm btn-danger flex-fill fw-bold" onclick="updateBookingStatus('${b.id}', 'Rejected')"><i class="fa-solid fa-xmark me-1"></i>Reject</button>
+                        </div>
+                    `;
+                } else if (b.status === 'Accepted') {
+                    actionArea = `
+                        <div class="alert alert-warning mt-3 mb-0 p-2 text-center small fw-medium">
+                            <i class="fa-solid fa-hourglass-half me-1"></i>Waiting for user to pay
+                        </div>
+                    `;
+                } else if (b.status === 'Confirmed') {
+                    actionArea = `
+                        <button class="btn btn-sm btn-primary w-100 mt-3 fw-bold" onclick="updateBookingStatus('${b.id}', 'Active')"><i class="fa-solid fa-key me-1"></i>Handover Vehicle (Mark Active)</button>
+                    `;
+                } else if (b.status === 'Active') {
+                    actionArea = `
+                        <button class="btn btn-sm btn-success w-100 mt-3 fw-bold" onclick="updateBookingStatus('${b.id}', 'Completed')"><i class="fa-solid fa-flag-checkered me-1"></i>Complete Rental</button>
+                    `;
+                }
+
+                html += `
+                    <div class="col-md-6 col-xl-4">
+                        <div class="card card-custom h-100 shadow-sm p-3">
+                            <div class="d-flex justify-content-between align-items-start border-bottom pb-2 mb-3">
+                                <div>
+                                    <h6 class="fw-bold mb-1">${vName}</h6>
+                                    <p class="text-secondary-gray small mb-0">Req ID: #${b.id.substring(1, 8).toUpperCase()}</p>
+                                </div>
+                                ${statusBadge(b.status)}
+                            </div>
+
+                            <div class="bg-light border rounded p-3 mb-3">
+                                <h6 class="fw-bold small text-charcoal mb-2 border-bottom pb-1"><i class="fa-solid fa-user-circle me-1"></i>Renter Details</h6>
+                                <p class="mb-1 small"><strong>Name:</strong> ${uName}</p>
+                                <p class="mb-1 small"><strong>Phone:</strong> ${uPhone}</p>
+                                <p class="mb-1 small text-primary"><i class="fa-solid fa-id-card me-1"></i><strong>DL:</strong> ${b.licenseNumber || 'N/A'}</p>
+                                <p class="mb-0 small text-danger"><i class="fa-solid fa-fingerprint me-1"></i><strong>Aadhaar:</strong> ${b.aadhaarLast4 || 'N/A'}</p>
+                            </div>
+                            
+                            <div class="mb-2">
+                                <p class="mb-1 small d-flex justify-content-between">
+                                    <span class="text-secondary-gray"><i class="fa-regular fa-calendar me-2"></i>Dates</span> 
+                                    <span class="fw-medium">${b.startDate} to ${b.endDate}</span>
+                                </p>
+                                <p class="mb-1 small d-flex justify-content-between">
+                                    <span class="text-secondary-gray"><i class="fa-solid fa-indian-rupee-sign me-2"></i>Amount</span> 
+                                    <span class="fw-bold text-primary">₹${b.totalAmount.toLocaleString()}</span>
+                                </p>
+                                <p class="mb-0 small d-flex justify-content-between">
+                                    <span class="text-secondary-gray"><i class="fa-solid fa-credit-card me-2"></i>Payment</span> 
+                                    <span class="fw-bold ${b.paymentStatus === 'Paid' ? 'text-success' : 'text-warning'}">${b.paymentStatus}</span>
+                                </p>
+                            </div>
+                            
+                            <div class="mt-auto">
+                                ${actionArea}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            grid.innerHTML = html;
+        }
+
+        window.updateBookingStatus = async function(bookingId, newStatus) {
+            let msg = `Are you sure you want to change the status to ${newStatus}?`;
+            if (newStatus === 'Rejected') msg = "Are you sure you want to reject this booking?";
+            if (newStatus === 'Accepted') msg = "Accepting this booking will allow the user to make a payment. Continue?";
+            
+            if (confirm(msg)) {
+                try {
+                    await DB.updateBooking(bookingId, { status: newStatus });
+                    window.location.reload();
+                } catch (err) {
+                    alert("Update failed. Please try again.");
+                }
+            }
+        };
+
+        // Tab click listeners to show loaders briefly (they are already loaded by init, this is just UX)
+        document.getElementById('active-tab').addEventListener('shown.bs.tab', () => document.getElementById('loadingActive').classList.remove('d-none'));
+        document.getElementById('history-tab').addEventListener('shown.bs.tab', () => document.getElementById('loadingHistory').classList.remove('d-none'));
+
+        init();
+    </script>
+</body>
+</html>

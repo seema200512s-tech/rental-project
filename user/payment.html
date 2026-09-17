@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Payment - RentRide</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/components.css">
+</head>
+<body class="bg-light">
+
+    <!-- Simple Navbar -->
+    <nav class="navbar navbar-custom py-3 shadow-sm">
+        <div class="container d-flex justify-content-center">
+            <a class="navbar-brand fw-bold fs-4 m-0" href="dashboard.html"><i class="fa-solid fa-car-side me-2"></i>RentRide Secure Checkout</a>
+        </div>
+    </nav>
+
+    <div class="container py-5">
+        <div class="row justify-content-center g-4">
+            <!-- Left: Payment Form -->
+            <div class="col-lg-6">
+                <div class="card card-custom p-4 p-md-5 shadow">
+                    <h4 class="fw-bold mb-4">Payment Details</h4>
+                    
+                    <div id="paymentAlert" class="alert d-none mb-4"></div>
+
+                    <form id="paymentForm">
+                        <div class="mb-4">
+                            <label class="form-label fw-medium">Payment Method</label>
+                            <div class="d-flex gap-3">
+                                <div class="form-check border rounded p-3 flex-fill">
+                                    <input class="form-check-input ms-0 me-2 mt-1" type="radio" name="payMethod" id="payCard" value="Card" checked>
+                                    <label class="form-check-label fw-medium d-block w-100" for="payCard">
+                                        <i class="fa-regular fa-credit-card me-2 text-primary"></i>Credit/Debit Card
+                                    </label>
+                                </div>
+                                <div class="form-check border rounded p-3 flex-fill">
+                                    <input class="form-check-input ms-0 me-2 mt-1" type="radio" name="payMethod" id="payUPI" value="UPI">
+                                    <label class="form-check-label fw-medium d-block w-100" for="payUPI">
+                                        <i class="fa-brands fa-google-pay me-2 text-success"></i>UPI
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="cardDetails">
+                            <div class="mb-3">
+                                <label class="form-label fw-medium small">Cardholder Name</label>
+                                <input type="text" class="form-control form-control-custom" placeholder="Name on card" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-medium small">Card Number</label>
+                                <input type="text" class="form-control form-control-custom" placeholder="0000 0000 0000 0000" maxlength="19" required>
+                            </div>
+                            <div class="row mb-4">
+                                <div class="col-6">
+                                    <label class="form-label fw-medium small">Expiry Date</label>
+                                    <input type="text" class="form-control form-control-custom" placeholder="MM/YY" maxlength="5" required>
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label fw-medium small">CVV</label>
+                                    <input type="password" class="form-control form-control-custom" placeholder="123" maxlength="3" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="upiDetails" class="d-none mb-4">
+                            <label class="form-label fw-medium small">UPI ID</label>
+                            <input type="text" class="form-control form-control-custom" placeholder="username@upi">
+                        </div>
+
+                        <div class="alert alert-warning border-warning" role="alert" style="font-size: 0.85rem;">
+                            <i class="fa-solid fa-triangle-exclamation me-2"></i><strong>Mock Payment Flow:</strong> No real payment is processed. Do not enter real card details.
+                        </div>
+
+                        <button type="submit" class="btn btn-primary-custom w-100 py-3 fw-bold fs-5 shadow-sm" id="payBtn">
+                            Pay ₹<span id="btnAmount">0</span>
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Right: Order Summary -->
+            <div class="col-lg-4">
+                <div class="card card-custom p-4 shadow-sm">
+                    <h5 class="fw-bold mb-4 border-bottom pb-3">Order Summary</h5>
+                    
+                    <div class="d-flex gap-3 mb-4">
+                        <img id="sumImg" src="" class="rounded" style="width: 80px; height: 60px; object-fit: cover;">
+                        <div>
+                            <h6 class="fw-bold mb-1" id="sumName">Vehicle Name</h6>
+                            <p class="text-secondary-gray small mb-0" id="sumDates">Start - End</p>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-secondary-gray">Rental Rate</span>
+                        <span class="fw-medium">₹<span id="sumRate">0</span> / day</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-3 border-bottom pb-3">
+                        <span class="text-secondary-gray">Duration</span>
+                        <span class="fw-medium" id="sumDays">0 days</span>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="fw-bold fs-5">Total Pay</span>
+                        <h3 class="fw-bold text-primary mb-0">₹<span id="sumTotal">0</span></h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase + Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+    <script src="../js/firebase-config.js"></script>
+    <script src="../js/db.js"></script>
+    <script src="../js/auth.js"></script>
+    
+    <script>
+        let currentUser = null;
+        let currentBooking = null;
+
+        // Toggle UI based on payment method
+        document.querySelectorAll('input[name="payMethod"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                const isCard = this.value === 'Card';
+                document.getElementById('cardDetails').className = isCard ? '' : 'd-none';
+                document.getElementById('upiDetails').className = isCard ? 'd-none mb-4' : 'mb-4';
+                
+                // Toggle required attr
+                const cardInputs = document.getElementById('cardDetails').querySelectorAll('input');
+                const upiInputs = document.getElementById('upiDetails').querySelectorAll('input');
+                
+                cardInputs.forEach(i => i.required = isCard);
+                upiInputs.forEach(i => i.required = !isCard);
+            });
+        });
+
+        async function init() {
+            currentUser = await Auth.requireRole('user');
+            
+            const params = new URLSearchParams(window.location.search);
+            const bid = params.get('bookingId');
+            
+            if (!bid) {
+                window.location.href = 'bookings.html';
+                return;
+            }
+
+            currentBooking = await DB.getBooking(bid);
+            
+            if (!currentBooking || currentBooking.userId !== currentUser.uid) {
+                alert("Invalid booking request.");
+                window.location.href = 'bookings.html';
+                return;
+            }
+
+            if (currentBooking.paymentStatus === 'Paid') {
+                alert("This booking has already been paid for.");
+                window.location.href = 'bookings.html';
+                return;
+            }
+
+            // Must be accepted by owner, OR we allow paying while pending depending on business flow.
+            // The prompt says "After the booking process and required approval flow, provide a payment page."
+            // But we can let them mock pay immediately for demo purposes if we want.
+            if(currentBooking.status === 'Rejected' || currentBooking.status === 'Cancelled') {
+                alert("This booking is invalid.");
+                window.location.href = 'bookings.html';
+                return;
+            }
+
+            const vehicle = await DB.getVehicle(currentBooking.vehicleId);
+
+            // Populate UI
+            document.getElementById('sumName').textContent = `${vehicle.brand} ${vehicle.model}`;
+            document.getElementById('sumImg').src = vehicle.imageUrl || 'https://via.placeholder.com/150';
+            document.getElementById('sumDates').textContent = `${currentBooking.startDate} to ${currentBooking.endDate}`;
+            document.getElementById('sumRate').textContent = currentBooking.pricePerDay.toLocaleString();
+            document.getElementById('sumDays').textContent = `${currentBooking.days} days`;
+            
+            document.getElementById('sumTotal').textContent = currentBooking.totalAmount.toLocaleString();
+            document.getElementById('btnAmount').textContent = currentBooking.totalAmount.toLocaleString();
+        }
+
+        document.getElementById('paymentForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const btn = document.getElementById('payBtn');
+            const alertBox = document.getElementById('paymentAlert');
+            
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
+            alertBox.classList.add('d-none');
+
+            const method = document.querySelector('input[name="payMethod"]:checked').value;
+
+            // Simulate network delay
+            setTimeout(async () => {
+                try {
+                    // Create Payment Record
+                    const paymentData = {
+                        bookingId: currentBooking.id,
+                        userId: currentUser.uid,
+                        ownerId: currentBooking.ownerId,
+                        vehicleId: currentBooking.vehicleId,
+                        amount: currentBooking.totalAmount,
+                        method: method,
+                        status: 'Paid',
+                        paymentDate: new Date().toISOString()
+                    };
+
+                    await DB.addPayment(paymentData);
+
+                    // Update Booking Status
+                    // If it was 'Pending', the owner still needs to accept.
+                    // If it was 'Accepted', it now becomes 'Confirmed' or 'Active'.
+                    let newStatus = currentBooking.status;
+                    if (currentBooking.status === 'Accepted') newStatus = 'Confirmed';
+
+                    await DB.updateBooking(currentBooking.id, { 
+                        paymentStatus: 'Paid',
+                        status: newStatus
+                    });
+
+                    alertBox.className = 'alert alert-success mb-4';
+                    alertBox.innerHTML = '<i class="fa-solid fa-circle-check me-2"></i>Payment Successful! Redirecting...';
+                    alertBox.classList.remove('d-none');
+
+                    setTimeout(() => {
+                        window.location.href = 'bookings.html';
+                    }, 2000);
+
+                } catch (err) {
+                    btn.disabled = false;
+                    btn.innerHTML = `Pay ₹<span id="btnAmount">${currentBooking.totalAmount.toLocaleString()}</span>`;
+                    
+                    alertBox.className = 'alert alert-danger mb-4';
+                    alertBox.innerHTML = '<i class="fa-solid fa-triangle-exclamation me-2"></i>Payment failed. Please try again.';
+                    alertBox.classList.remove('d-none');
+                }
+            }, 1500);
+        });
+
+        init();
+    </script>
+</body>
+</html>

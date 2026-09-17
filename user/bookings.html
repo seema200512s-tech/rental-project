@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Bookings - RentRide</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/components.css">
+</head>
+<body class="bg-light">
+
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-custom py-3">
+        <div class="container">
+            <a class="navbar-brand fw-bold fs-4" href="dashboard.html"><i class="fa-solid fa-car-side me-2"></i>RentRide</a>
+            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon" style="filter: invert(1);"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="dashboard.html">Dashboard</a></li>
+                    <li class="nav-item"><a class="nav-link" href="browse.html">Browse Vehicles</a></li>
+                    <li class="nav-item"><a class="nav-link" href="favorites.html">Favorites</a></li>
+                    <li class="nav-item"><a class="nav-link active" href="bookings.html">My Bookings</a></li>
+                    <li class="nav-item"><a class="nav-link" href="profile.html">Profile</a></li>
+                </ul>
+                <div class="d-flex align-items-center">
+                    <button class="btn btn-sm btn-outline-light logout-btn"><i class="fa-solid fa-right-from-bracket me-1"></i>Logout</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container py-5">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="fw-bold mb-0">My Bookings</h2>
+        </div>
+        
+        <ul class="nav nav-tabs mb-4" id="bookingTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active fw-medium" id="active-tab" data-bs-toggle="tab" data-bs-target="#active" type="button" role="tab">Active & Upcoming</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link fw-medium" id="past-tab" data-bs-toggle="tab" data-bs-target="#past" type="button" role="tab">Past & Cancelled</button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="bookingTabsContent">
+            <!-- Active Tab -->
+            <div class="tab-pane fade show active" id="active" role="tabpanel">
+                <div id="loadingActive" class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                </div>
+                <div class="row g-4" id="activeBookingsGrid"></div>
+            </div>
+            
+            <!-- Past Tab -->
+            <div class="tab-pane fade" id="past" role="tabpanel">
+                <div id="loadingPast" class="text-center py-5 d-none">
+                    <div class="spinner-border text-primary" role="status"></div>
+                </div>
+                <div class="row g-4" id="pastBookingsGrid"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase + Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+    <script src="../js/firebase-config.js"></script>
+    <script src="../js/db.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        let currentUser = null;
+
+        function statusBadge(status) {
+            const map = {
+                'Pending': 'badge-warning', 'Accepted': 'badge-success', 'Confirmed': 'badge-success',
+                'Active': 'badge-success', 'Completed': 'badge-neutral', 'Rejected': 'badge-danger', 'Cancelled': 'badge-danger'
+            };
+            return `<span class="badge-custom ${map[status] || 'badge-neutral'}">${status}</span>`;
+        }
+
+        async function init() {
+            currentUser = await Auth.requireRole('user');
+            
+            try {
+                const bookings = await DB.getBookingsByUser(currentUser.uid);
+                
+                // Sort newest first
+                bookings.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+                
+                const activeBookings = bookings.filter(b => ['Pending', 'Accepted', 'Confirmed', 'Active'].includes(b.status));
+                const pastBookings = bookings.filter(b => ['Completed', 'Rejected', 'Cancelled'].includes(b.status));
+
+                await renderBookings(activeBookings, 'activeBookingsGrid', 'loadingActive');
+                await renderBookings(pastBookings, 'pastBookingsGrid', 'loadingPast');
+                
+            } catch (err) {
+                console.error("Error loading bookings:", err);
+            }
+        }
+
+        async function renderBookings(bookings, gridId, loaderId) {
+            const grid = document.getElementById(gridId);
+            const loader = document.getElementById(loaderId);
+            
+            loader.classList.add('d-none');
+            
+            if (bookings.length === 0) {
+                grid.innerHTML = `
+                    <div class="col-12 text-center py-5">
+                        <i class="fa-solid fa-folder-open fa-3x text-light-gray mb-3"></i>
+                        <h5 class="text-secondary-gray fw-bold">No bookings found in this category.</h5>
+                        <a href="browse.html" class="btn btn-primary-custom mt-3">Browse Vehicles</a>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '';
+            for (const b of bookings) {
+                const vehicle = await DB.getVehicle(b.vehicleId);
+                const vName = vehicle ? `${vehicle.brand} ${vehicle.model}` : 'Unknown Vehicle';
+                const vImg = vehicle?.imageUrl || 'https://via.placeholder.com/150';
+                
+                let actionBtn = '';
+                if (b.status === 'Accepted' && b.paymentStatus === 'Pending') {
+                    actionBtn = `<a href="payment.html?bookingId=${b.id}" class="btn btn-sm btn-success w-100">Make Payment</a>`;
+                } else if (b.status === 'Pending') {
+                    actionBtn = `<button class="btn btn-sm btn-danger w-100" onclick="cancelBooking('${b.id}')">Cancel Request</button>`;
+                } else if (b.status === 'Completed') {
+                    actionBtn = `<a href="reviews.html?vid=${b.vehicleId}&bid=${b.id}" class="btn btn-sm btn-outline-primary w-100">Leave Review</a>`;
+                }
+
+                html += `
+                    <div class="col-md-6 col-xl-4">
+                        <div class="card card-custom h-100 shadow-sm p-3">
+                            <div class="d-flex gap-3 mb-3">
+                                <img src="${vImg}" alt="${vName}" class="rounded object-fit-cover" style="width: 80px; height: 80px;">
+                                <div class="flex-grow-1">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <h6 class="fw-bold mb-1">${vName}</h6>
+                                        ${statusBadge(b.status)}
+                                    </div>
+                                    <p class="text-secondary-gray small mb-0">ID: #${b.id.substring(1, 8).toUpperCase()}</p>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-light p-2 rounded mb-3 small border">
+                                <div class="d-flex justify-content-between mb-1">
+                                    <span class="text-secondary-gray"><i class="fa-regular fa-calendar me-1"></i>Dates</span>
+                                    <span class="fw-medium">${b.startDate} to ${b.endDate}</span>
+                                </div>
+                                <div class="d-flex justify-content-between mb-1">
+                                    <span class="text-secondary-gray"><i class="fa-solid fa-indian-rupee-sign me-1"></i>Total Amount</span>
+                                    <span class="fw-bold text-primary">₹${b.totalAmount.toLocaleString()}</span>
+                                </div>
+                                <div class="d-flex justify-content-between">
+                                    <span class="text-secondary-gray"><i class="fa-solid fa-credit-card me-1"></i>Payment</span>
+                                    <span class="fw-medium ${b.paymentStatus === 'Paid' ? 'text-success' : 'text-warning'}">${b.paymentStatus}</span>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-auto">
+                                ${actionBtn}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            grid.innerHTML = html;
+        }
+
+        window.cancelBooking = async function(bookingId) {
+            if (confirm("Are you sure you want to cancel this booking request?")) {
+                await DB.updateBooking(bookingId, { status: 'Cancelled' });
+                window.location.reload();
+            }
+        };
+
+        // Tab click trigger load past if not loaded
+        document.getElementById('past-tab').addEventListener('shown.bs.tab', function () {
+            document.getElementById('loadingPast').classList.remove('d-none');
+            // Re-render handled by init, could optimize to only load once
+        });
+
+        init();
+    </script>
+</body>
+</html>

@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Vehicles - Admin - RentRide</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/components.css">
+</head>
+<body class="bg-light">
+
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-custom py-3" style="background-color: var(--charcoal);">
+        <div class="container">
+            <a class="navbar-brand fw-bold fs-4 text-white" href="dashboard.html">
+                <i class="fa-solid fa-car-side me-2"></i>RentRide <span class="badge bg-danger ms-2 fs-6">Admin</span>
+            </a>
+            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon" style="filter: invert(1);"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link text-white-50" href="dashboard.html">Overview</a></li>
+                    <li class="nav-item"><a class="nav-link text-white-50" href="users.html">Users & Owners</a></li>
+                    <li class="nav-item"><a class="nav-link active text-white" href="vehicles.html">Vehicles</a></li>
+                    <li class="nav-item"><a class="nav-link text-white-50" href="bookings.html">All Bookings</a></li>
+                    <li class="nav-item"><a class="nav-link text-white-50" href="payments.html">Payments</a></li>
+                </ul>
+                <div class="d-flex align-items-center">
+                    <button class="btn btn-sm btn-outline-light logout-btn"><i class="fa-solid fa-right-from-bracket me-1"></i>Logout</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container py-5">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="fw-bold mb-0">Vehicle Management</h2>
+        </div>
+
+        <ul class="nav nav-tabs mb-4" id="adminVehicleTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active fw-medium position-relative" id="pending-tab" data-bs-toggle="tab" data-bs-target="#pending" type="button">
+                    Pending Vehicle Requests <span id="pendingBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none">0</span>
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link fw-medium" id="approved-tab" data-bs-toggle="tab" data-bs-target="#approved" type="button">Approved / Active</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link fw-medium" id="rejected-tab" data-bs-toggle="tab" data-bs-target="#rejected" type="button">Rejected / Maintenance</button>
+            </li>
+        </ul>
+
+        <div class="tab-content">
+            <!-- Pending -->
+            <div class="tab-pane fade show active" id="pending" role="tabpanel">
+                <div id="loadingPending" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></div>
+                <div class="row g-4" id="pendingGrid"></div>
+            </div>
+            
+            <!-- Approved -->
+            <div class="tab-pane fade" id="approved" role="tabpanel">
+                <div id="loadingApproved" class="text-center py-5 d-none"><div class="spinner-border text-primary" role="status"></div></div>
+                <div class="row g-4" id="approvedGrid"></div>
+            </div>
+
+            <!-- Rejected/Maintenance -->
+            <div class="tab-pane fade" id="rejected" role="tabpanel">
+                <div id="loadingRejected" class="text-center py-5 d-none"><div class="spinner-border text-primary" role="status"></div></div>
+                <div class="row g-4" id="rejectedGrid"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reject Modal -->
+    <div class="modal fade" id="rejectModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title fw-bold text-danger"><i class="fa-solid fa-triangle-exclamation me-2"></i>Reject Vehicle</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-secondary-gray small mb-3">Please provide a reason for rejecting this vehicle. This will be shown to the owner.</p>
+                    <textarea id="rejectionReason" class="form-control form-control-custom" rows="3" placeholder="Optional reason..."></textarea>
+                    <input type="hidden" id="rejectVid">
+                </div>
+                <div class="modal-footer border-0 pt-0">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger" onclick="submitRejection()">Reject Vehicle</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase + Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+    <script src="../js/firebase-config.js"></script>
+    <script src="../js/db.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        let allUsers = {}; 
+        let currentUser = null;
+        let rejectModal;
+
+        async function getUserCached(uid) {
+            if(allUsers[uid]) return allUsers[uid];
+            const u = await DB.getUser(uid);
+            allUsers[uid] = u;
+            return u;
+        }
+
+        function statusBadge(status) {
+            const map = {
+                'Pending Approval': 'badge-warning',
+                'Available': 'badge-success',
+                'Booked': 'badge-primary', 'Active': 'badge-primary',
+                'Maintenance': 'badge-danger', 'Rejected': 'badge-danger', 'Inactive': 'badge-secondary'
+            };
+            return `<span class="badge-custom ${map[status] || 'badge-neutral'}">${status}</span>`;
+        }
+
+        async function init() {
+            currentUser = await Auth.requireRole('admin');
+            rejectModal = new bootstrap.Modal(document.getElementById('rejectModal'));
+
+            try {
+                // Fetch ALL vehicles using db reference
+                const snapshot = await database.ref('vehicles').once('value');
+                const vData = snapshot.val() || {};
+                
+                const vehicles = Object.keys(vData).map(k => ({ id: k, ...vData[k] }));
+                
+                // Categorize
+                const pending = vehicles.filter(v => v.status === 'Pending Approval');
+                const approved = vehicles.filter(v => ['Available', 'Booked', 'Active'].includes(v.status));
+                const rejected = vehicles.filter(v => ['Rejected', 'Maintenance', 'Inactive'].includes(v.status));
+
+                if(pending.length > 0) {
+                    const pb = document.getElementById('pendingBadge');
+                    pb.textContent = pending.length;
+                    pb.classList.remove('d-none');
+                }
+
+                await renderGrid(pending, 'pendingGrid', 'loadingPending', true);
+                await renderGrid(approved, 'approvedGrid', 'loadingApproved', false);
+                await renderGrid(rejected, 'rejectedGrid', 'loadingRejected', false);
+
+            } catch (err) {
+                console.error(err);
+                alert("Failed to load vehicle data.");
+            }
+        }
+
+        async function renderGrid(vehicles, gridId, loaderId, isPending) {
+            const grid = document.getElementById(gridId);
+            const loader = document.getElementById(loaderId);
+            loader.classList.add('d-none');
+
+            if (vehicles.length === 0) {
+                grid.innerHTML = '<div class="col-12 text-center py-5 text-secondary-gray"><i class="fa-solid fa-car fa-3x mb-3 opacity-25"></i><h5>No vehicles in this category.</h5></div>';
+                return;
+            }
+
+            let html = '';
+            for (const v of vehicles) {
+                const owner = await getUserCached(v.ownerId);
+                const ownerStr = owner ? `${owner.name} (${owner.phone})` : 'Unknown Owner';
+
+                let actionHtml = '';
+                if (isPending) {
+                    actionHtml = `
+                        <div class="d-flex gap-2 mt-3 pt-3 border-top">
+                            <button class="btn btn-success flex-fill fw-bold" onclick="approveVehicle('${v.id}')"><i class="fa-solid fa-check me-2"></i>Approve</button>
+                            <button class="btn btn-outline-danger flex-fill fw-bold" onclick="showRejectModal('${v.id}')"><i class="fa-solid fa-xmark me-2"></i>Reject</button>
+                        </div>
+                    `;
+                } else if (v.status === 'Available') {
+                    // Admin can force remove
+                    actionHtml = `
+                        <div class="mt-3 pt-3 border-top text-end">
+                            <button class="btn btn-sm btn-outline-danger" onclick="updateStatus('${v.id}', 'Rejected')">Revoke Approval</button>
+                        </div>
+                    `;
+                } else if (v.status === 'Rejected') {
+                    // Re-approve
+                    actionHtml = `
+                        <div class="mt-3 pt-3 border-top text-end">
+                            <button class="btn btn-sm btn-outline-success" onclick="updateStatus('${v.id}', 'Available')">Re-Approve</button>
+                        </div>
+                    `;
+                }
+
+                html += `
+                    <div class="col-md-6 col-xl-4">
+                        <div class="card card-custom h-100 shadow-sm border-0">
+                            <div class="position-relative">
+                                <img src="${v.imageUrl || 'https://via.placeholder.com/400'}" alt="${v.brand}" style="height: 200px; width:100%; object-fit: cover; border-radius: 12px 12px 0 0;">
+                                <div class="position-absolute top-0 end-0 p-2">
+                                    ${statusBadge(v.status)}
+                                </div>
+                            </div>
+                            
+                            <div class="p-4 flex-grow-1 d-flex flex-column">
+                                <div class="d-flex justify-content-between align-items-start mb-1">
+                                    <h5 class="fw-bold mb-0">${v.brand} ${v.model}</h5>
+                                    <h6 class="text-primary fw-bold mb-0">₹${v.price}<small class="text-secondary-gray fw-normal">/d</small></h6>
+                                </div>
+                                <p class="text-secondary-gray small mb-3"><i class="fa-solid fa-hashtag me-1"></i>${v.regNo} | ${v.year}</p>
+                                
+                                <div class="bg-light p-2 rounded small mb-2">
+                                    <p class="mb-1"><strong>Owner:</strong> ${ownerStr}</p>
+                                    <p class="mb-1"><strong>Location:</strong> ${v.location}</p>
+                                    <p class="mb-1"><strong>Type:</strong> ${v.type} | ${v.fuelType} | ${v.transmission}</p>
+                                    ${v.documentUrl ? `<p class="mb-0"><strong>Documents:</strong> <a href="${v.documentUrl}" target="_blank" class="text-primary text-decoration-none">View Document <i class="fa-solid fa-external-link-alt ms-1"></i></a></p>` : ''}
+                                </div>
+                                
+                                <div class="mt-auto">
+                                    ${actionHtml}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            grid.innerHTML = html;
+        }
+
+        window.updateStatus = async function(vid, newStatus) {
+            let confirmMsg = newStatus === 'Available' ? 'Approve this vehicle for the platform?' : 'Reject/Revoke this vehicle?';
+            if (confirm(confirmMsg)) {
+                try {
+                    await DB.updateVehicle(vid, { status: newStatus });
+                    window.location.reload();
+                } catch(e) {
+                    alert('Error updating status');
+                }
+            }
+        };
+
+        window.approveVehicle = async function(vid) {
+            try {
+                await DB.updateVehicle(vid, { 
+                    status: 'Available',
+                    approvedAt: new Date().toISOString(),
+                    approvedBy: currentUser.uid
+                });
+                alert("Vehicle approved successfully.");
+                window.location.reload();
+            } catch(e) {
+                alert('Error approving vehicle');
+            }
+        };
+
+        window.showRejectModal = function(vid) {
+            document.getElementById('rejectVid').value = vid;
+            document.getElementById('rejectionReason').value = '';
+            rejectModal.show();
+        };
+
+        window.submitRejection = async function() {
+            const vid = document.getElementById('rejectVid').value;
+            const reason = document.getElementById('rejectionReason').value.trim();
+            
+            try {
+                await DB.updateVehicle(vid, { 
+                    status: 'Rejected',
+                    rejectionReason: reason || null
+                });
+                alert("Vehicle rejected.");
+                window.location.reload();
+            } catch(e) {
+                alert('Error rejecting vehicle');
+            }
+        };
+
+        // Tab triggers
+        document.getElementById('approved-tab').addEventListener('shown.bs.tab', () => document.getElementById('loadingApproved').classList.remove('d-none'));
+        document.getElementById('rejected-tab').addEventListener('shown.bs.tab', () => document.getElementById('loadingRejected').classList.remove('d-none'));
+
+        init();
+    </script>
+</body>
+</html>

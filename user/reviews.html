@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leave a Review - RentRide</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/components.css">
+    <style>
+        .star-rating { display: flex; flex-direction: row-reverse; gap: 6px; justify-content: center; }
+        .star-rating input { display: none; }
+        .star-rating label {
+            font-size: 2.5rem;
+            color: var(--light-gray);
+            cursor: pointer;
+            transition: color 0.15s;
+        }
+        .star-rating input:checked ~ label,
+        .star-rating label:hover,
+        .star-rating label:hover ~ label {
+            color: #F59E0B;
+        }
+    </style>
+</head>
+<body class="bg-light">
+
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-custom py-3">
+        <div class="container">
+            <a class="navbar-brand fw-bold fs-4" href="dashboard.html"><i class="fa-solid fa-car-side me-2"></i>RentRide</a>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="dashboard.html">Dashboard</a></li>
+                    <li class="nav-item"><a class="nav-link active" href="bookings.html">My Bookings</a></li>
+                </ul>
+                <div class="d-flex align-items-center">
+                    <button class="btn btn-sm btn-outline-light logout-btn"><i class="fa-solid fa-right-from-bracket me-1"></i>Logout</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-lg-7">
+
+                <!-- Vehicle Info Card -->
+                <div class="card card-custom shadow-sm mb-4 p-0 overflow-hidden" id="vehicleCard" style="display: none;">
+                    <div class="d-flex align-items-center gap-4 p-4">
+                        <img id="vImg" src="" alt="Vehicle" class="rounded" style="width: 100px; height: 80px; object-fit: cover; flex-shrink: 0;">
+                        <div>
+                            <h5 class="fw-bold mb-1" id="vName">Vehicle Name</h5>
+                            <p class="text-secondary-gray small mb-0" id="vDates">Rental Period</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Review Form Card -->
+                <div class="card card-custom p-4 p-md-5 shadow" id="reviewCard" style="display: none;">
+                    <h3 class="fw-bold mb-1 text-center">Share Your Experience</h3>
+                    <p class="text-secondary-gray text-center mb-4">Your review helps others make better decisions.</p>
+
+                    <div id="reviewMsg" class="alert d-none mb-4"></div>
+
+                    <form id="reviewForm">
+                        <!-- Star Rating -->
+                        <div class="mb-4 text-center">
+                            <label class="form-label fw-bold d-block mb-3">Overall Rating</label>
+                            <div class="star-rating justify-content-center" id="starRating">
+                                <input type="radio" name="rating" id="star5" value="5">
+                                <label for="star5" title="5 stars"><i class="fa-solid fa-star"></i></label>
+                                <input type="radio" name="rating" id="star4" value="4">
+                                <label for="star4" title="4 stars"><i class="fa-solid fa-star"></i></label>
+                                <input type="radio" name="rating" id="star3" value="3">
+                                <label for="star3" title="3 stars"><i class="fa-solid fa-star"></i></label>
+                                <input type="radio" name="rating" id="star2" value="2">
+                                <label for="star2" title="2 stars"><i class="fa-solid fa-star"></i></label>
+                                <input type="radio" name="rating" id="star1" value="1">
+                                <label for="star1" title="1 star"><i class="fa-solid fa-star"></i></label>
+                            </div>
+                            <p class="small text-secondary-gray mt-2" id="ratingLabel">Select a rating</p>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label fw-medium">Your Review <span class="text-danger">*</span></label>
+                            <textarea id="reviewText" class="form-control form-control-custom" rows="5"
+                                placeholder="Describe your experience: vehicle condition, cleanliness, pickup/dropoff process..." 
+                                minlength="20" maxlength="500" required></textarea>
+                            <div class="d-flex justify-content-end mt-1">
+                                <small class="text-secondary-gray"><span id="charCount">0</span>/500</small>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary-custom w-100 py-3 fw-bold" id="submitReviewBtn">
+                            <span id="submitBtnText">Submit Review</span>
+                            <span id="submitSpinner" class="spinner-border spinner-border-sm d-none ms-2" role="status"></span>
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Already Reviewed State -->
+                <div class="card card-custom p-5 shadow text-center d-none" id="alreadyReviewedCard">
+                    <i class="fa-solid fa-circle-check fa-4x text-success mb-3"></i>
+                    <h4 class="fw-bold">Review Already Submitted</h4>
+                    <p class="text-secondary-gray">You have already reviewed this rental. Thank you!</p>
+                    <a href="bookings.html" class="btn btn-primary-custom mt-3 px-5">Back to Bookings</a>
+                </div>
+                
+                <div id="pageLoader" class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase + Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+    <script src="../js/firebase-config.js"></script>
+    <script src="../js/db.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentUser = null;
+        let vehicleId = null;
+        let bookingId = null;
+
+        const ratingLabels = { 1: 'Poor', 2: 'Fair', 3: 'Good', 4: 'Very Good', 5: 'Excellent!' };
+
+        // Star rating label update
+        document.querySelectorAll('input[name="rating"]').forEach(input => {
+            input.addEventListener('change', function() {
+                document.getElementById('ratingLabel').textContent = ratingLabels[this.value] || 'Select a rating';
+            });
+        });
+
+        // Character counter
+        document.getElementById('reviewText').addEventListener('input', function() {
+            document.getElementById('charCount').textContent = this.value.length;
+        });
+
+        async function init() {
+            currentUser = await Auth.requireRole('user');
+
+            const params = new URLSearchParams(window.location.search);
+            vehicleId = params.get('vid');
+            bookingId = params.get('bid');
+
+            if (!vehicleId || !bookingId) {
+                alert('Invalid review link.');
+                window.location.href = 'bookings.html';
+                return;
+            }
+
+            // Check if already reviewed
+            const alreadyReviewed = await DB.hasReviewedBooking(vehicleId, bookingId);
+            document.getElementById('pageLoader').style.display = 'none';
+
+            if (alreadyReviewed) {
+                document.getElementById('alreadyReviewedCard').classList.remove('d-none');
+                return;
+            }
+
+            // Load vehicle info
+            const vehicle = await DB.getVehicle(vehicleId);
+            const booking = await DB.getBooking(bookingId);
+
+            if (!vehicle || !booking || booking.userId !== currentUser.uid || booking.status !== 'Completed') {
+                alert('This review link is invalid or the booking is not yet completed.');
+                window.location.href = 'bookings.html';
+                return;
+            }
+
+            document.getElementById('vImg').src = vehicle.imageUrl || 'https://via.placeholder.com/150';
+            document.getElementById('vName').textContent = `${vehicle.brand} ${vehicle.model}`;
+            document.getElementById('vDates').textContent = `${booking.startDate} to ${booking.endDate}`;
+
+            document.getElementById('vehicleCard').style.display = 'block';
+            document.getElementById('reviewCard').style.display = 'block';
+        }
+
+        document.getElementById('reviewForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const ratingEl = document.querySelector('input[name="rating"]:checked');
+            const msgBox = document.getElementById('reviewMsg');
+            const btn = document.getElementById('submitReviewBtn');
+            const btnText = document.getElementById('submitBtnText');
+            const spinner = document.getElementById('submitSpinner');
+
+            msgBox.classList.add('d-none');
+
+            if (!ratingEl) {
+                msgBox.className = 'alert alert-danger mb-4';
+                msgBox.innerHTML = '<i class="fa-solid fa-triangle-exclamation me-2"></i>Please select a star rating.';
+                msgBox.classList.remove('d-none');
+                return;
+            }
+
+            const text = document.getElementById('reviewText').value.trim();
+            if (text.length < 20) {
+                msgBox.className = 'alert alert-danger mb-4';
+                msgBox.innerHTML = '<i class="fa-solid fa-triangle-exclamation me-2"></i>Review must be at least 20 characters.';
+                msgBox.classList.remove('d-none');
+                return;
+            }
+
+            btn.disabled = true;
+            btnText.textContent = 'Submitting...';
+            spinner.classList.remove('d-none');
+
+            const reviewData = {
+                userId: currentUser.uid,
+                userName: currentUser.name,
+                rating: parseInt(ratingEl.value),
+                review: text,
+                createdAt: new Date().toISOString()
+            };
+
+            try {
+                await DB.addReview(vehicleId, bookingId, reviewData);
+
+                msgBox.className = 'alert alert-success mb-4';
+                msgBox.innerHTML = '<i class="fa-solid fa-circle-check me-2"></i>Review submitted! Thank you.';
+                msgBox.classList.remove('d-none');
+
+                setTimeout(() => {
+                    window.location.href = 'bookings.html';
+                }, 1800);
+            } catch (err) {
+                msgBox.className = 'alert alert-danger mb-4';
+                msgBox.innerHTML = '<i class="fa-solid fa-triangle-exclamation me-2"></i>Failed to submit review. Please try again.';
+                msgBox.classList.remove('d-none');
+                btn.disabled = false;
+                btnText.textContent = 'Submit Review';
+                spinner.classList.add('d-none');
+            }
+        });
+
+        init();
+    </script>
+</body>
+</html>
