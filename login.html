@@ -68,14 +68,11 @@
         DB.seedIfEmpty();
 
         // If already logged in, redirect
-        auth.onAuthStateChanged(async (user) => {
-            if (user) {
-                const userData = await DB.getUser(user.uid);
-                if (userData) {
-                    if (userData.role === 'admin') window.location.href = 'admin/dashboard.html';
-                    else if (userData.role === 'owner') window.location.href = 'owner/dashboard.html';
-                    else window.location.href = 'user/dashboard.html';
-                }
+        Auth.getCurrentUser().then(userData => {
+            if (userData) {
+                if (userData.role === 'admin') window.location.href = 'admin/dashboard.html';
+                else if (userData.role === 'owner') window.location.href = 'owner/dashboard.html';
+                else window.location.href = 'user/dashboard.html';
             }
         });
 

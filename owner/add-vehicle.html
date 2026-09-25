@@ -248,16 +248,16 @@
 
             try {
                 // 1. Upload Image & Document to Firebase Storage
-                const fileName = `vehicles/${currentUser.uid}_${Date.now()}_${selectedFile.name}`;
+                const fileName = `vehicles/${currentUser.id}_${Date.now()}_${selectedFile.name}`;
                 const imageUrl = await DB.uploadImage(selectedFile, fileName);
                 
                 const docFile = docInput.files[0];
-                const docName = `documents/${currentUser.uid}_${Date.now()}_${docFile.name}`;
+                const docName = `documents/${currentUser.id}_${Date.now()}_${docFile.name}`;
                 const docUrl = await DB.uploadImage(docFile, docName);
 
                 // 2. Save Vehicle to Realtime DB
                 const vehicleData = {
-                    ownerId: currentUser.uid,
+                    ownerId: currentUser.id,
                     ownerName: currentUser.name,
                     type: document.getElementById('vType').value,
                     brand: document.getElementById('vBrand').value.trim(),

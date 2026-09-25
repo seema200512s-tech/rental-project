@@ -134,10 +134,7 @@
 
             try {
                 // Fetch ALL vehicles using db reference
-                const snapshot = await database.ref('vehicles').once('value');
-                const vData = snapshot.val() || {};
-                
-                const vehicles = Object.keys(vData).map(k => ({ id: k, ...vData[k] }));
+                const vehicles = await DB.getAllVehicles();
                 
                 // Categorize
                 const pending = vehicles.filter(v => v.status === 'Pending Approval');
@@ -251,7 +248,7 @@
                 await DB.updateVehicle(vid, { 
                     status: 'Available',
                     approvedAt: new Date().toISOString(),
-                    approvedBy: currentUser.uid
+                    approvedBy: currentUser.id
                 });
                 alert("Vehicle approved successfully.");
                 window.location.reload();

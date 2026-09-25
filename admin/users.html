@@ -101,12 +101,11 @@
 
             try {
                 // Fetch all users from DB
-                const snapshot = await database.ref('users').once('value');
-                const data = snapshot.val() || {};
+                const users = await DB.getAllUsers();
                 
-                allUsersData = Object.keys(data).map(uid => ({
-                    uid: uid,
-                    ...data[uid]
+                allUsersData = users.map(u => ({
+                    uid: u.id,
+                    ...u
                 }));
 
                 // Default sort by created at desc if available, else name
@@ -182,7 +181,7 @@
             const verb = newStatus === 'Suspended' ? 'suspend' : 'reactivate';
             if (confirm(`Are you sure you want to ${verb} this account?`)) {
                 try {
-                    await database.ref(`users/${uid}`).update({ status: newStatus });
+                    await DB.updateUser(uid, { status: newStatus });
                     
                     // Update local cache
                     const user = allUsersData.find(u => u.uid === uid);

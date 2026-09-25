@@ -28,56 +28,14 @@
                     <div id="paymentAlert" class="alert d-none mb-4"></div>
 
                     <form id="paymentForm">
-                        <div class="mb-4">
-                            <label class="form-label fw-medium">Payment Method</label>
-                            <div class="d-flex gap-3">
-                                <div class="form-check border rounded p-3 flex-fill">
-                                    <input class="form-check-input ms-0 me-2 mt-1" type="radio" name="payMethod" id="payCard" value="Card" checked>
-                                    <label class="form-check-label fw-medium d-block w-100" for="payCard">
-                                        <i class="fa-regular fa-credit-card me-2 text-primary"></i>Credit/Debit Card
-                                    </label>
-                                </div>
-                                <div class="form-check border rounded p-3 flex-fill">
-                                    <input class="form-check-input ms-0 me-2 mt-1" type="radio" name="payMethod" id="payUPI" value="UPI">
-                                    <label class="form-check-label fw-medium d-block w-100" for="payUPI">
-                                        <i class="fa-brands fa-google-pay me-2 text-success"></i>UPI
-                                    </label>
-                                </div>
-                            </div>
+                        <div id="upiDetails" class="mb-4 text-center">
+                            <h6 class="fw-bold mb-3">Scan this QR code using any UPI app and complete the payment.</h6>
+                            <img src="../backend/static/uploads/upi_qr.png" alt="UPI QR Code" class="img-fluid border rounded p-2 mb-3" style="max-width: 250px;">
+                            <p class="text-secondary-gray small fw-bold">Amount: ₹<span id="qrAmount">0</span></p>
                         </div>
 
-                        <div id="cardDetails">
-                            <div class="mb-3">
-                                <label class="form-label fw-medium small">Cardholder Name</label>
-                                <input type="text" class="form-control form-control-custom" placeholder="Name on card" required>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label fw-medium small">Card Number</label>
-                                <input type="text" class="form-control form-control-custom" placeholder="0000 0000 0000 0000" maxlength="19" required>
-                            </div>
-                            <div class="row mb-4">
-                                <div class="col-6">
-                                    <label class="form-label fw-medium small">Expiry Date</label>
-                                    <input type="text" class="form-control form-control-custom" placeholder="MM/YY" maxlength="5" required>
-                                </div>
-                                <div class="col-6">
-                                    <label class="form-label fw-medium small">CVV</label>
-                                    <input type="password" class="form-control form-control-custom" placeholder="123" maxlength="3" required>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div id="upiDetails" class="d-none mb-4">
-                            <label class="form-label fw-medium small">UPI ID</label>
-                            <input type="text" class="form-control form-control-custom" placeholder="username@upi">
-                        </div>
-
-                        <div class="alert alert-warning border-warning" role="alert" style="font-size: 0.85rem;">
-                            <i class="fa-solid fa-triangle-exclamation me-2"></i><strong>Mock Payment Flow:</strong> No real payment is processed. Do not enter real card details.
-                        </div>
-
-                        <button type="submit" class="btn btn-primary-custom w-100 py-3 fw-bold fs-5 shadow-sm" id="payBtn">
-                            Pay ₹<span id="btnAmount">0</span>
+                        <button type="button" class="btn btn-success w-100 py-3 fw-bold fs-5 shadow-sm" id="completedBtn">
+                            I Have Completed Payment
                         </button>
                     </form>
                 </div>
@@ -127,22 +85,6 @@
         let currentUser = null;
         let currentBooking = null;
 
-        // Toggle UI based on payment method
-        document.querySelectorAll('input[name="payMethod"]').forEach(radio => {
-            radio.addEventListener('change', function() {
-                const isCard = this.value === 'Card';
-                document.getElementById('cardDetails').className = isCard ? '' : 'd-none';
-                document.getElementById('upiDetails').className = isCard ? 'd-none mb-4' : 'mb-4';
-                
-                // Toggle required attr
-                const cardInputs = document.getElementById('cardDetails').querySelectorAll('input');
-                const upiInputs = document.getElementById('upiDetails').querySelectorAll('input');
-                
-                cardInputs.forEach(i => i.required = isCard);
-                upiInputs.forEach(i => i.required = !isCard);
-            });
-        });
-
         async function init() {
             currentUser = await Auth.requireRole('user');
             
@@ -156,7 +98,7 @@
 
             currentBooking = await DB.getBooking(bid);
             
-            if (!currentBooking || currentBooking.userId !== currentUser.uid) {
+            if (!currentBooking || currentBooking.userId !== currentUser.id) {
                 alert("Invalid booking request.");
                 window.location.href = 'bookings.html';
                 return;
@@ -187,51 +129,46 @@
             document.getElementById('sumDays').textContent = `${currentBooking.days} days`;
             
             document.getElementById('sumTotal').textContent = currentBooking.totalAmount.toLocaleString();
-            document.getElementById('btnAmount').textContent = currentBooking.totalAmount.toLocaleString();
+            document.getElementById('qrAmount').textContent = currentBooking.totalAmount.toLocaleString();
         }
 
-        document.getElementById('paymentForm').addEventListener('submit', async function(e) {
+        document.getElementById('completedBtn').addEventListener('click', async function(e) {
             e.preventDefault();
-            
-            const btn = document.getElementById('payBtn');
+            await processPayment();
+        });
+
+        async function processPayment() {
+            const btn = document.getElementById('completedBtn');
             const alertBox = document.getElementById('paymentAlert');
             
             btn.disabled = true;
             btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
             alertBox.classList.add('d-none');
 
-            const method = document.querySelector('input[name="payMethod"]:checked').value;
-
             // Simulate network delay
             setTimeout(async () => {
                 try {
                     // Create Payment Record
+                    const status = 'Pending Verification';
                     const paymentData = {
                         bookingId: currentBooking.id,
-                        userId: currentUser.uid,
+                        userId: currentUser.id,
                         ownerId: currentBooking.ownerId,
                         vehicleId: currentBooking.vehicleId,
                         amount: currentBooking.totalAmount,
-                        method: method,
-                        status: 'Paid',
+                        method: 'UPI',
+                        status: status,
                         paymentDate: new Date().toISOString()
                     };
 
                     await DB.addPayment(paymentData);
 
                     // Update Booking Status
-                    // If it was 'Pending', the owner still needs to accept.
-                    // If it was 'Accepted', it now becomes 'Confirmed' or 'Active'.
-                    let newStatus = currentBooking.status;
-                    if (currentBooking.status === 'Accepted') newStatus = 'Confirmed';
-
-                    await DB.updateBooking(currentBooking.id, { 
-                        paymentStatus: 'Paid',
-                        status: newStatus
-                    });
+                    let updateData = { paymentStatus: status };
+                    await DB.updateBooking(currentBooking.id, updateData);
 
                     alertBox.className = 'alert alert-success mb-4';
-                    alertBox.innerHTML = '<i class="fa-solid fa-circle-check me-2"></i>Payment Successful! Redirecting...';
+                    alertBox.innerHTML = '<i class="fa-solid fa-circle-check me-2"></i>Payment details submitted! Awaiting admin verification. Redirecting...';
                     alertBox.classList.remove('d-none');
 
                     setTimeout(() => {
@@ -240,14 +177,14 @@
 
                 } catch (err) {
                     btn.disabled = false;
-                    btn.innerHTML = `Pay ₹<span id="btnAmount">${currentBooking.totalAmount.toLocaleString()}</span>`;
+                    btn.innerHTML = 'I Have Completed Payment';
                     
                     alertBox.className = 'alert alert-danger mb-4';
                     alertBox.innerHTML = '<i class="fa-solid fa-triangle-exclamation me-2"></i>Payment failed. Please try again.';
                     alertBox.classList.remove('d-none');
                 }
             }, 1500);
-        });
+        }
 
         init();
     </script>

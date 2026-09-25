@@ -146,15 +146,12 @@
             document.getElementById('welcomeAdmin').textContent = 'Admin ' + admin.name;
 
             try {
-                // Fetch ALL system data (Admin Privileges required in real app)
-                // For this demo structure, we use the root reference
-                const snapshot = await database.ref('/').once('value');
-                const data = snapshot.val() || {};
-
-                const users = Object.values(data.users || {});
-                const vehicles = Object.values(data.vehicles || {});
-                const bookings = Object.values(data.bookings || {});
-                const payments = Object.values(data.payments || {});
+                const [users, vehicles, bookings, payments] = await Promise.all([
+                    DB.getAllUsers(),
+                    DB.getAllVehicles(),
+                    DB.getAllBookings(),
+                    DB.getAllPayments()
+                ]);
 
                 // Calculate Stats
                 const totalUsers = users.filter(u => u.role === 'user').length;

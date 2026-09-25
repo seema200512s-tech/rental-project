@@ -122,7 +122,7 @@
             };
 
             try {
-                await DB.updateUser(currentUser.uid, updatedData);
+                await DB.updateUser(currentUser.id, updatedData);
                 
                 // Update session storage name for UI consistency
                 sessionStorage.setItem('userName', updatedData.name);

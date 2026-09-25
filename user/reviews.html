@@ -169,7 +169,7 @@
             const vehicle = await DB.getVehicle(vehicleId);
             const booking = await DB.getBooking(bookingId);
 
-            if (!vehicle || !booking || booking.userId !== currentUser.uid || booking.status !== 'Completed') {
+            if (!vehicle || !booking || booking.userId !== currentUser.id || booking.status !== 'Completed') {
                 alert('This review link is invalid or the booking is not yet completed.');
                 window.location.href = 'bookings.html';
                 return;
@@ -214,7 +214,7 @@
             spinner.classList.remove('d-none');
 
             const reviewData = {
-                userId: currentUser.uid,
+                userId: currentUser.id,
                 userName: currentUser.name,
                 rating: parseInt(ratingEl.value),
                 review: text,

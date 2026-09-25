@@ -68,8 +68,10 @@
                             <th>Renter</th>
                             <th>Owner</th>
                             <th>Method</th>
+                            <th>Status</th>
                             <th class="text-end">Amount</th>
                             <th class="text-end">Platform Cut (10%)</th>
+                            <th class="text-end">Actions</th>
                         </tr>
                     </thead>
                     <tbody id="paymentsTableBody">
@@ -97,32 +99,45 @@
             await Auth.requireRole('admin');
 
             try {
-                // Fetch root data
-                const snapshot = await database.ref('/').once('value');
-                const data = snapshot.val() || {};
+                const [users, payments] = await Promise.all([
+                    DB.getAllUsers(),
+                    DB.getAllPayments()
+                ]);
+
+                cacheData.users = users.reduce((acc, u) => { acc[u.id] = u; return acc; }, {});
                 
-                cacheData.users = data.users || {};
-                const paymentsObj = data.payments || {};
-                
-                const allPayments = Object.keys(paymentsObj).map(id => ({
-                    id: id,
-                    ...paymentsObj[id]
-                })).filter(p => p.status === 'Paid');
+                // Show Paid and Pending Verification payments
+                const relevantPayments = payments.filter(p => p.status === 'Paid' || p.status === 'Pending Verification');
 
                 // Sort newest first
-                allPayments.sort((a, b) => new Date(b.paymentDate) - new Date(a.paymentDate));
+                relevantPayments.sort((a, b) => new Date(b.paymentDate) - new Date(a.paymentDate));
 
                 let totalVol = 0;
 
                 let html = '';
-                allPayments.forEach(p => {
-                    totalVol += p.amount;
+                relevantPayments.forEach(p => {
+                    if(p.status === 'Paid') {
+                        totalVol += p.amount;
+                    }
                     const date = new Date(p.paymentDate).toLocaleDateString();
                     const shortBid = p.bookingId.substring(1, 8).toUpperCase();
                     
                     const owner = cacheData.users[p.ownerId];
                     const renter = cacheData.users[p.userId];
                     const cut = Math.floor(p.amount * 0.1);
+
+                    let statusBadge = '';
+                    if(p.status === 'Paid') statusBadge = '<span class="badge bg-success">Paid</span>';
+                    else if(p.status === 'Pending Verification') statusBadge = '<span class="badge bg-warning text-dark">Pending</span>';
+                    else statusBadge = `<span class="badge bg-secondary">${p.status}</span>`;
+
+                    let actions = '';
+                    if(p.status === 'Pending Verification') {
+                        actions = `
+                            <button class="btn btn-sm btn-success me-1" onclick="verifyPayment('${p.id}', '${p.bookingId}', true)">Verify</button>
+                            <button class="btn btn-sm btn-danger" onclick="verifyPayment('${p.id}', '${p.bookingId}', false)">Reject</button>
+                        `;
+                    }
 
                     html += `
                         <tr>
@@ -131,8 +146,10 @@
                             <td>${renter ? renter.name : 'Unknown'}</td>
                             <td>${owner ? owner.name : 'Unknown'}</td>
                             <td><span class="badge bg-light border text-dark">${p.method}</span></td>
+                            <td>${statusBadge}</td>
                             <td class="text-end fw-bold text-charcoal">₹${p.amount.toLocaleString()}</td>
-                            <td class="text-end fw-bold text-success bg-light">₹${cut.toLocaleString()}</td>
+                            <td class="text-end fw-bold text-success bg-light">₹${p.status === 'Paid' ? cut.toLocaleString() : '0'}</td>
+                            <td class="text-end">${actions}</td>
                         </tr>
                     `;
                 });
@@ -140,8 +157,8 @@
                 document.getElementById('totalVol').textContent = '₹' + totalVol.toLocaleString();
                 
                 const tbody = document.getElementById('paymentsTableBody');
-                if (allPayments.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-5 text-secondary-gray">No successful payments found.</td></tr>';
+                if (relevantPayments.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="9" class="text-center py-5 text-secondary-gray">No payments found.</td></tr>';
                 } else {
                     tbody.innerHTML = html;
                 }
@@ -154,6 +171,30 @@
                 document.getElementById('loadingIndicator').innerHTML = '<div class="alert alert-danger">Failed to load payments.</div>';
             }
         }
+
+        window.verifyPayment = async function(paymentId, bookingId, approve) {
+            if(!confirm(`Are you sure you want to ${approve ? 'approve' : 'reject'} this payment?`)) return;
+            
+            try {
+                const newStatus = approve ? 'Paid' : 'Rejected';
+                await DB.updatePayment(paymentId, { status: newStatus });
+                
+                if (approve) {
+                    const booking = await DB.getBooking(bookingId);
+                    if(booking) {
+                        let bStatus = booking.status;
+                        if(bStatus === 'Accepted') bStatus = 'Confirmed';
+                        await DB.updateBooking(bookingId, { paymentStatus: 'Paid', status: bStatus });
+                    }
+                }
+                
+                alert(`Payment ${approve ? 'verified' : 'rejected'} successfully.`);
+                init();
+            } catch(e) {
+                console.error(e);
+                alert("An error occurred while updating the payment.");
+            }
+        };
 
         init();
     </script>

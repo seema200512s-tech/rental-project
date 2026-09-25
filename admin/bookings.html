@@ -112,18 +112,15 @@
             await Auth.requireRole('admin');
 
             try {
-                // Fetch root data for efficient admin view
-                const snapshot = await database.ref('/').once('value');
-                const data = snapshot.val() || {};
-                
-                cacheData.users = data.users || {};
-                cacheData.vehicles = data.vehicles || {};
-                
-                const bookingsObj = data.bookings || {};
-                allBookingsData = Object.keys(bookingsObj).map(id => ({
-                    id: id,
-                    ...bookingsObj[id]
-                }));
+                const [users, vehicles, bookings] = await Promise.all([
+                    DB.getAllUsers(),
+                    DB.getAllVehicles(),
+                    DB.getAllBookings()
+                ]);
+
+                cacheData.users = users.reduce((acc, u) => { acc[u.id] = u; return acc; }, {});
+                cacheData.vehicles = vehicles.reduce((acc, v) => { acc[v.id] = v; return acc; }, {});
+                allBookingsData = bookings;
 
                 // Sort newest first
                 allBookingsData.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));

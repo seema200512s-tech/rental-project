@@ -107,8 +107,8 @@
             currentUser = await Auth.requireRole('owner');
             
             try {
-                const bookings = await DB.getBookingsByOwner(currentUser.uid);
-                allVehicles = await DB.getVehiclesByOwner(currentUser.uid);
+                const bookings = await DB.getBookingsByOwner(currentUser.id);
+                allVehicles = await DB.getVehiclesByOwner(currentUser.id);
                 
                 // Sort newest first
                 bookings.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));

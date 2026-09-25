@@ -12,88 +12,7 @@
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="css/components.css">
     <style>
-        .hero-section {
-            background-color: var(--bg-color);
-            padding: 60px 0 100px;
-            position: relative;
-            overflow: hidden;
-        }
-        .hero-title {
-            font-size: 3rem;
-            font-weight: 700;
-            color: var(--charcoal);
-            line-height: 1.2;
-            margin-bottom: 1rem;
-        }
-        .hero-subtitle {
-            color: var(--gray);
-            font-size: 1.125rem;
-            max-width: 500px;
-            margin-bottom: 2rem;
-        }
-        .hero-label {
-            color: var(--primary-blue);
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            font-size: 0.875rem;
-            margin-bottom: 0.5rem;
-            display: inline-block;
-        }
-        .search-bar-container {
-            background: var(--white);
-            border-radius: 12px;
-            padding: 1.5rem;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
-            display: flex;
-            align-items: flex-end;
-            gap: 1rem;
-            position: relative;
-            z-index: 10;
-        }
-        .search-input-group {
-            flex: 1;
-            display: flex;
-            align-items: center;
-            border-right: 1px solid var(--light-gray);
-            padding-right: 1rem;
-        }
-        .search-input-group:last-of-type {
-            border-right: none;
-            padding-right: 0;
-        }
-        .search-input-group i {
-            color: var(--gray);
-            font-size: 1.25rem;
-            margin-right: 1rem;
-        }
-        .search-input-content label {
-            display: block;
-            font-size: 0.75rem;
-            color: var(--gray);
-            margin-bottom: 0.25rem;
-            font-weight: 600;
-        }
-        .search-input-content input, .search-input-content select {
-            border: none;
-            padding: 0;
-            font-size: 1rem;
-            color: var(--charcoal);
-            font-weight: 500;
-            background: transparent;
-            width: 100%;
-        }
-        .search-input-content input:focus, .search-input-content select:focus {
-            outline: none;
-            box-shadow: none;
-        }
-        .hero-image {
-            position: absolute;
-            right: -5%;
-            top: 20%;
-            width: 55%;
-            z-index: 1;
-        }
+        /* ── Navbar (light) ─────────────────────────── */
         .navbar-light-custom {
             background-color: var(--white);
             border-bottom: 1px solid var(--light-gray);
@@ -101,13 +20,165 @@
         .navbar-light-custom .nav-link {
             color: var(--dark-gray);
             font-weight: 500;
+            position: relative;
+            transition: color 0.25s ease;
         }
-        .navbar-light-custom .nav-link:hover, .navbar-light-custom .nav-link.active {
+        .navbar-light-custom .nav-link:hover,
+        .navbar-light-custom .nav-link.active {
             color: var(--primary-blue);
         }
-        .rating-star {
-            color: var(--warning-orange);
-            font-size: 0.875rem;
+        .navbar-light-custom .nav-link.active::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 20px;
+            height: 2px;
+            background: var(--primary-blue);
+            border-radius: 2px;
+        }
+
+        /* ── Hero ────────────────────────────────────── */
+        .hero-section {
+            background-color: var(--bg-color);
+            padding: 80px 0 100px;
+            position: relative;
+            overflow: hidden;
+            min-height: 520px;
+        }
+        .hero-label {
+            color: var(--primary-blue);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2.5px;
+            font-size: 0.8rem;
+            margin-bottom: 0.75rem;
+            display: inline-block;
+        }
+        .hero-title {
+            font-size: clamp(2.2rem, 5vw, 3.25rem);
+            font-weight: 800;
+            color: var(--charcoal);
+            line-height: 1.15;
+            margin-bottom: 1.25rem;
+        }
+        .hero-subtitle {
+            color: var(--gray);
+            font-size: 1.1rem;
+            line-height: 1.7;
+            max-width: 480px;
+            margin-bottom: 2.25rem;
+        }
+        .hero-cta-group {
+            display: flex;
+            gap: 0.875rem;
+            flex-wrap: wrap;
+        }
+        .btn-hero-primary {
+            background-color: var(--primary-blue);
+            color: var(--white);
+            border: none;
+            border-radius: 10px;
+            padding: 14px 32px;
+            font-weight: 600;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .btn-hero-primary:hover {
+            background-color: #2563EB;
+            color: var(--white);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px -4px rgba(59, 130, 246, 0.4);
+            text-decoration: none;
+        }
+        .btn-hero-secondary {
+            background-color: var(--white);
+            color: var(--charcoal);
+            border: 1.5px solid var(--light-gray);
+            border-radius: 10px;
+            padding: 14px 32px;
+            font-weight: 600;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .btn-hero-secondary:hover {
+            border-color: var(--primary-blue);
+            color: var(--primary-blue);
+            background-color: rgba(59, 130, 246, 0.04);
+            transform: translateY(-2px);
+            text-decoration: none;
+        }
+
+        /* Hero image — positioned on the right for desktop */
+        .hero-image-wrapper {
+            position: relative;
+        }
+        .hero-image {
+            width: 100%;
+            max-height: 420px;
+            object-fit: cover;
+            border-radius: 20px;
+            box-shadow: 0 20px 50px -12px rgba(0, 0, 0, 0.12);
+        }
+
+        /* ── Stats strip ─────────────────────────────── */
+        .stats-strip {
+            margin-top: 3.5rem;
+            display: flex;
+            gap: 2.5rem;
+            flex-wrap: wrap;
+        }
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 0.625rem;
+        }
+        .stat-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+        }
+        .stat-icon.blue  { background: rgba(59, 130, 246, 0.1); color: var(--primary-blue); }
+        .stat-icon.green { background: rgba(34, 197, 94, 0.1);  color: var(--success-green); }
+        .stat-icon.amber { background: rgba(245, 158, 11, 0.1); color: var(--warning-orange); }
+        .stat-number {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: var(--charcoal);
+            line-height: 1.2;
+        }
+        .stat-label {
+            font-size: 0.78rem;
+            color: var(--gray);
+            font-weight: 500;
+        }
+
+        /* ── Responsive ──────────────────────────────── */
+        @media (max-width: 991.98px) {
+            .hero-section { padding: 50px 0 60px; min-height: auto; }
+            .hero-image-wrapper { margin-top: 2.5rem; text-align: center; }
+            .hero-image { max-height: 300px; border-radius: 16px; }
+            .stats-strip { gap: 1.5rem; }
+        }
+        @media (max-width: 575.98px) {
+            .hero-section { padding: 36px 0 48px; }
+            .hero-cta-group { flex-direction: column; }
+            .btn-hero-primary, .btn-hero-secondary { width: 100%; justify-content: center; }
+            .stats-strip { gap: 1.25rem; }
+            .stat-item { min-width: calc(50% - 1rem); }
         }
     </style>
 </head>
@@ -125,13 +196,13 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav mx-auto mb-2 mb-lg-0 gap-3">
                     <li class="nav-item"><a class="nav-link active" href="index.html">Home</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#">Vehicles</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#">About</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#">Contact</a></li>
+                    <li class="nav-item"><a class="nav-link" href="user/browse.html">Vehicles</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#about">About</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#contact">Contact</a></li>
                 </ul>
                 <div class="d-flex gap-3">
                     <a href="login.html" class="btn btn-secondary-custom">Login</a>
-                    <a href="#" class="btn btn-primary-custom">Sign Up</a>
+                    <a href="register.html" class="btn btn-primary-custom">Sign Up</a>
                 </div>
             </div>
         </div>
@@ -140,133 +211,53 @@
     <!-- Hero Section -->
     <section class="hero-section">
         <div class="container">
-            <div class="row">
-                <div class="col-lg-6 position-relative z-2">
+            <div class="row align-items-center">
+                <!-- Left: Text content -->
+                <div class="col-lg-6">
                     <span class="hero-label">YOUR RIDE, YOUR WAY</span>
-                    <h1 class="hero-title">Rent Vehicles<br>Easily & Safely</h1>
-                    <p class="hero-subtitle">Cars, Bikes, SUVs and more — at the best prices.<br>Your next adventure is just a booking away.</p>
-                </div>
-            </div>
-            
-            <!-- Hero Image overlay -->
-            <img src="https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?auto=format&fit=crop&q=80&w=1200" alt="Hero Car" class="hero-image rounded shadow-lg d-none d-lg-block" style="object-fit: cover; height: 400px; border-radius: 20px 0 0 20px;">
+                    <h1 class="hero-title">Rent Vehicles<br>Easily &amp; Safely</h1>
+                    <p class="hero-subtitle">Browse from a wide range of cars, bikes and SUVs — all verified, well‑maintained and available at the best daily prices. Your next road trip is just a click away.</p>
 
-            <!-- Search Bar -->
-            <div class="row mt-5">
-                <div class="col-lg-10">
-                    <div class="search-bar-container">
-                        <div class="search-input-group">
-                            <i class="fa-solid fa-location-dot"></i>
-                            <div class="search-input-content w-100">
-                                <label>Pick-up Location</label>
-                                <select>
-                                    <option>Select Location</option>
-                                    <option>Mumbai</option>
-                                    <option>Pune</option>
-                                    <option>Delhi</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="search-input-group">
-                            <i class="fa-regular fa-calendar"></i>
-                            <div class="search-input-content w-100">
-                                <label>Pick-up Date</label>
-                                <input type="text" placeholder="Select Date" onfocus="(this.type='date')" onblur="(this.type='text')">
-                            </div>
-                        </div>
-                        <div class="search-input-group">
-                            <i class="fa-regular fa-calendar"></i>
-                            <div class="search-input-content w-100">
-                                <label>Return Date</label>
-                                <input type="text" placeholder="Select Date" onfocus="(this.type='date')" onblur="(this.type='text')">
-                            </div>
-                        </div>
-                        <div>
-                            <button class="btn btn-primary-custom px-4 py-3 h-100" style="border-radius: 8px;">Search</button>
-                        </div>
+                    <div class="hero-cta-group">
+                        <a href="user/browse.html" class="btn-hero-primary">
+                            Explore Vehicles <i class="fa-solid fa-arrow-right"></i>
+                        </a>
+                        <a href="register.html" class="btn-hero-secondary">
+                            Get Started <i class="fa-solid fa-user-plus"></i>
+                        </a>
                     </div>
-                </div>
-            </div>
-        </div>
-    </section>
 
-    <!-- Popular Vehicles Section -->
-    <section class="container py-5 mt-4">
-        <div class="d-flex justify-content-between align-items-end mb-4">
-            <h3 class="fw-bold m-0" style="color: var(--charcoal);">Popular Vehicles</h3>
-            <a href="#" class="text-primary fw-medium text-decoration-none">View All <i class="fa-solid fa-arrow-right ms-1"></i></a>
-        </div>
-
-        <div class="row g-4">
-            <!-- Vehicle Card 1 -->
-            <div class="col-md-6 col-lg-3">
-                <div class="card-custom">
-                    <img src="https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?auto=format&fit=crop&q=80&w=400" class="card-custom-img" alt="Toyota Innova" style="height: 180px; padding: 1rem; object-fit: contain;">
-                    <div class="card-custom-body">
-                        <h5 class="fw-bold mb-1">Toyota Innova</h5>
-                        <p class="text-primary fw-bold mb-3">₹ 2,500 <span class="text-secondary-gray fw-normal">/ day</span></p>
-                        
-                        <div class="d-flex justify-content-between align-items-center">
-                            <span class="badge badge-success px-3 py-2 rounded-pill">Available</span>
-                            <div class="text-secondary-gray" style="font-size: 0.875rem;">
-                                <i class="fa-solid fa-star rating-star"></i> <span class="fw-bold text-dark-gray">4.8</span> (120)
+                    <!-- Mini stats -->
+                    <div class="stats-strip">
+                        <div class="stat-item">
+                            <div class="stat-icon blue"><i class="fa-solid fa-car"></i></div>
+                            <div>
+                                <div class="stat-number">500+</div>
+                                <div class="stat-label">Vehicles</div>
+                            </div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-icon green"><i class="fa-solid fa-users"></i></div>
+                            <div>
+                                <div class="stat-number">10k+</div>
+                                <div class="stat-label">Happy Riders</div>
+                            </div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-icon amber"><i class="fa-solid fa-map-marker-alt"></i></div>
+                            <div>
+                                <div class="stat-number">50+</div>
+                                <div class="stat-label">Cities</div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- Vehicle Card 2 -->
-            <div class="col-md-6 col-lg-3">
-                <div class="card-custom">
-                    <img src="https://images.unsplash.com/photo-1558981403-c5f9899a28bc?auto=format&fit=crop&q=80&w=400" class="card-custom-img" alt="Royal Enfield Classic" style="height: 180px; padding: 1rem; object-fit: contain;">
-                    <div class="card-custom-body">
-                        <h5 class="fw-bold mb-1">Royal Enfield Classic</h5>
-                        <p class="text-primary fw-bold mb-3">₹ 800 <span class="text-secondary-gray fw-normal">/ day</span></p>
-                        
-                        <div class="d-flex justify-content-between align-items-center">
-                            <span class="badge badge-success px-3 py-2 rounded-pill">Available</span>
-                            <div class="text-secondary-gray" style="font-size: 0.875rem;">
-                                <i class="fa-solid fa-star rating-star"></i> <span class="fw-bold text-dark-gray">4.6</span> (98)
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Vehicle Card 3 -->
-            <div class="col-md-6 col-lg-3">
-                <div class="card-custom">
-                    <img src="https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&q=80&w=400" class="card-custom-img" alt="Honda City" style="height: 180px; padding: 1rem; object-fit: contain;">
-                    <div class="card-custom-body">
-                        <h5 class="fw-bold mb-1">Honda City</h5>
-                        <p class="text-primary fw-bold mb-3">₹ 1,800 <span class="text-secondary-gray fw-normal">/ day</span></p>
-                        
-                        <div class="d-flex justify-content-between align-items-center">
-                            <span class="badge badge-danger px-3 py-2 rounded-pill">Booked</span>
-                            <div class="text-secondary-gray" style="font-size: 0.875rem;">
-                                <i class="fa-solid fa-star rating-star"></i> <span class="fw-bold text-dark-gray">4.5</span> (76)
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Vehicle Card 4 -->
-            <div class="col-md-6 col-lg-3">
-                <div class="card-custom">
-                    <img src="https://images.unsplash.com/photo-1502877338535-766e1452684a?auto=format&fit=crop&q=80&w=400" class="card-custom-img" alt="Mahindra Thar" style="height: 180px; padding: 1rem; object-fit: contain;">
-                    <div class="card-custom-body">
-                        <h5 class="fw-bold mb-1">Mahindra Thar</h5>
-                        <p class="text-primary fw-bold mb-3">₹ 3,000 <span class="text-secondary-gray fw-normal">/ day</span></p>
-                        
-                        <div class="d-flex justify-content-between align-items-center">
-                            <span class="badge badge-success px-3 py-2 rounded-pill">Available</span>
-                            <div class="text-secondary-gray" style="font-size: 0.875rem;">
-                                <i class="fa-solid fa-star rating-star"></i> <span class="fw-bold text-dark-gray">4.7</span> (110)
-                            </div>
-                        </div>
-                    </div>
+                <!-- Right: Hero image -->
+                <div class="col-lg-6 hero-image-wrapper">
+                    <img src="https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?auto=format&fit=crop&q=80&w=1200"
+                         alt="Premium rental car"
+                         class="hero-image">
                 </div>
             </div>
         </div>

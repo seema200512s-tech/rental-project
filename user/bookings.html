@@ -91,7 +91,7 @@
             currentUser = await Auth.requireRole('user');
             
             try {
-                const bookings = await DB.getBookingsByUser(currentUser.uid);
+                const bookings = await DB.getBookingsByUser(currentUser.id);
                 
                 // Sort newest first
                 bookings.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));

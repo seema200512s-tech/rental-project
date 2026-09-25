@@ -177,7 +177,7 @@
 
             try {
                 // Load owner's vehicles for the dropdown
-                ownerVehicles = await DB.getVehiclesByOwner(currentUser.uid);
+                ownerVehicles = await DB.getVehiclesByOwner(currentUser.id);
                 const vSelect = document.getElementById('mVehicle');
                 ownerVehicles.forEach(v => {
                     const opt = document.createElement('option');
@@ -190,7 +190,7 @@
                 document.getElementById('mDate').valueAsDate = new Date();
 
                 // Load maintenance logs
-                const logs = await DB.getMaintenanceByOwner(currentUser.uid);
+                const logs = await DB.getMaintenanceByOwner(currentUser.id);
                 document.getElementById('loadingIndicator').style.display = 'none';
 
                 if (logs.length === 0) {
@@ -294,7 +294,7 @@
             spinner.classList.remove('d-none');
 
             const logData = {
-                ownerId: currentUser.uid,
+                ownerId: currentUser.id,
                 vehicleId: vehicleId,
                 type: type,
                 description: desc,
