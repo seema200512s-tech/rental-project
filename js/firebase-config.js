@@ -13,10 +13,11 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-if (!firebase.apps.length) {
+if (typeof firebase !== 'undefined' && !firebase.apps.length) {
     firebase.initializeApp(firebaseConfig);
 }
 
-const auth = firebase.auth();
-const database = firebase.database();
-const storage = firebase.storage();
+const auth = typeof firebase !== 'undefined' ? firebase.auth() : null;
+const database = typeof firebase !== 'undefined' ? firebase.database() : null;
+const storage = typeof firebase !== 'undefined' ? firebase.storage() : null;
+
