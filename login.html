@@ -51,7 +51,12 @@
 
         <hr class="my-4">
         <div class="text-center">
-            <p class="mb-2 text-secondary-gray" style="font-size: 0.8rem;"><i class="fa-solid fa-circle-info me-1"></i>Demo: Register a new account or use an existing one</p>
+            <p class="mb-2 text-secondary-gray fw-semibold" style="font-size: 0.85rem;"><i class="fa-solid fa-key me-1"></i>Quick Demo Login</p>
+            <div class="d-flex justify-content-between gap-2">
+                <button type="button" class="btn btn-outline-primary btn-sm flex-fill" onclick="fillDemo('admin@rentride.com', 'admin123')">Admin</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm flex-fill" onclick="fillDemo('owner@rentride.com', 'owner123')">Owner</button>
+                <button type="button" class="btn btn-outline-dark btn-sm flex-fill" onclick="fillDemo('seema@gmail.com', 'user123')">User</button>
+            </div>
         </div>
     </div>
 
@@ -64,6 +69,11 @@
     <script src="js/db.js"></script>
     <script src="js/auth.js"></script>
     <script>
+        function fillDemo(email, pass) {
+            document.getElementById('email').value = email;
+            document.getElementById('password').value = pass;
+        }
+
         // Seed initial data if DB is empty
         DB.seedIfEmpty();
 
@@ -105,10 +115,9 @@
                 }, 800);
             } catch (err) {
                 let msg = 'Invalid email or password.';
-                if (err.message) msg = err.message;
-                if (err.code === 'auth/user-not-found') msg = 'No account found with this email.';
-                if (err.code === 'auth/wrong-password') msg = 'Incorrect password.';
-                if (err.code === 'auth/invalid-credential') msg = 'Invalid email or password.';
+                if (err.message) {
+                    msg = err.message;
+                }
 
                 msgBox.className = 'alert alert-danger p-2 mb-3 text-center';
                 msgBox.innerHTML = '<i class="fa-solid fa-circle-exclamation me-1"></i>' + msg;

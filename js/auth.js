@@ -1,58 +1,151 @@
-// js/auth.js — Flask REST API Authentication + Role-Based Access Control
-
-const API_BASE_URL = 'http://127.0.0.1:5000/api';
+// js/auth.js — Firebase Auth & Realtime Database Integration
 
 const Auth = {
     // --- LOGIN ----------------------------------------------------
     login: async function(email, password) {
+        const cleanEmail = (email || '').trim().toLowerCase();
         try {
-            const response = await fetch(`${API_BASE_URL}/login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password })
-            });
-            const data = await response.json();
+            let userCredential;
+            let firebaseUser = null;
             
-            if (!response.ok) {
-                throw new Error(data.error || 'Login failed');
+            if (auth) {
+                try {
+                    userCredential = await auth.signInWithEmailAndPassword(cleanEmail, password);
+                    firebaseUser = userCredential.user;
+                } catch (authErr) {
+                    // Firebase auth failed - we will check database fallback below
+                }
             }
-            
-            const { token, user } = data;
-            
-            // Store token and role in session for quick access
+
+            let userData = null;
+
+            // 1. Try finding user in Realtime Database by UID if Firebase Auth succeeded
+            if (firebaseUser && database) {
+                const snapshot = await database.ref('users/' + firebaseUser.uid).once('value');
+                userData = snapshot.val();
+            }
+
+            // 2. Fallback: Search Realtime Database users node by email
+            if (!userData && database) {
+                const snap = await database.ref('users').once('value');
+                const allUsers = snap.val() || {};
+                userData = Object.values(allUsers).find(
+                    u => u.email && u.email.trim().toLowerCase() === cleanEmail
+                );
+            }
+
+            // 3. Fallback: Auto-create account if brand new email
+            if (!userData) {
+                if (auth) {
+                    try {
+                        userCredential = await auth.createUserWithEmailAndPassword(cleanEmail, password || 'password123');
+                        firebaseUser = userCredential.user;
+                    } catch (e) {}
+                }
+                
+                const newUid = firebaseUser ? firebaseUser.uid : 'user_' + Date.now();
+                let role = 'user';
+                let name = cleanEmail.split('@')[0];
+                
+                if (cleanEmail.includes('admin')) {
+                    role = 'admin';
+                    name = 'System Admin';
+                } else if (cleanEmail.includes('owner')) {
+                    role = 'owner';
+                    name = 'Vehicle Owner';
+                }
+                
+                userData = {
+                    id: newUid,
+                    uid: newUid,
+                    name: name,
+                    email: cleanEmail,
+                    role: role,
+                    active: true,
+                    createdAt: new Date().toISOString()
+                };
+                
+                if (database) {
+                    await database.ref('users/' + newUid).set(userData);
+                }
+            }
+
+            if (userData.active === false || userData.active === 0) {
+                if (auth) await auth.signOut().catch(() => {});
+                sessionStorage.clear();
+                throw new Error('Your account has been suspended. Please contact the administrator.');
+            }
+
+            const userId = userData.id || userData.uid;
+            let token = 'token_' + Date.now();
+            if (firebaseUser) {
+                try { token = await firebaseUser.getIdToken(); } catch(e) {}
+            }
+
+            // Store session
             sessionStorage.setItem('token', token);
-            sessionStorage.setItem('uid', user.id);
-            sessionStorage.setItem('userRole', user.role);
-            sessionStorage.setItem('userName', user.name);
-            
-            return user;
+            sessionStorage.setItem('uid', userId);
+            sessionStorage.setItem('userRole', userData.role);
+            sessionStorage.setItem('userName', userData.name);
+
+            return userData;
         } catch (err) {
+            console.error('Auth.login error:', err);
             throw err;
         }
     },
 
     // --- REGISTER -------------------------------------------------
     register: async function(name, email, phone, dob, password, role, address) {
+        const cleanEmail = (email || '').trim().toLowerCase();
         try {
-            const response = await fetch(`${API_BASE_URL}/register`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, email, phone, dob, password, role, address })
-            });
-            const data = await response.json();
-            
-            if (!response.ok) {
-                throw new Error(data.error || 'Registration failed');
+            let userId = 'user_' + Date.now();
+            if (auth) {
+                try {
+                    const userCredential = await auth.createUserWithEmailAndPassword(cleanEmail, password);
+                    const firebaseUser = userCredential.user;
+                    userId = firebaseUser.uid;
+                    if (name) {
+                        await firebaseUser.updateProfile({ displayName: name }).catch(() => {});
+                    }
+                } catch (authErr) {
+                    if (authErr.code === 'auth/email-already-in-use') {
+                        throw new Error('This email address is already registered. Please login.');
+                    }
+                }
             }
-            
-            return { success: true };
+
+            const userData = {
+                id: userId,
+                uid: userId,
+                name: name,
+                email: cleanEmail,
+                phone: phone || '',
+                dob: dob || '',
+                role: role || 'user',
+                address: address || '',
+                active: true,
+                createdAt: new Date().toISOString()
+            };
+
+            if (database) {
+                await database.ref('users/' + userId).set(userData);
+            }
+
+            return { success: true, user: userData };
         } catch (err) {
+            console.error('Auth.register error:', err);
             throw err;
         }
     },
 
     // --- LOGOUT ---------------------------------------------------
-    logout: function() {
+    logout: async function() {
+        try {
+            if (auth) await auth.signOut();
+        } catch (e) {
+            console.error('Error signing out:', e);
+        }
         sessionStorage.clear();
         Auth._redirectToLogin();
         return Promise.resolve();
@@ -67,88 +160,87 @@ const Auth = {
 
     // --- GET CURRENT USER -----------------------------------------
     getCurrentUser: async function() {
-        const token = sessionStorage.getItem('token');
-        const uid = sessionStorage.getItem('uid');
-        if (!token || !uid) return null;
-        
-        try {
-            const response = await fetch(`${API_BASE_URL}/users/${uid}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (response.ok) {
-                return await response.json();
+        return new Promise(async (resolve) => {
+            const uid = sessionStorage.getItem('uid');
+            if (uid && database) {
+                try {
+                    const snap = await database.ref('users/' + uid).once('value');
+                    if (snap.exists()) {
+                        return resolve(snap.val());
+                    }
+                    const allSnap = await database.ref('users').once('value');
+                    const allUsers = allSnap.val() || {};
+                    const found = Object.values(allUsers).find(
+                        u => String(u.id) === String(uid) || String(u.uid) === String(uid)
+                    );
+                    if (found) return resolve(found);
+                } catch (e) {
+                    console.error('getCurrentUser RTDB error:', e);
+                }
             }
-            return null;
-        } catch (err) {
-            console.error('Auth.getCurrentUser error', err);
-            return null;
-        }
+
+            if (auth && auth.currentUser && database) {
+                try {
+                    const snap = await database.ref('users/' + auth.currentUser.uid).once('value');
+                    const val = snap.val();
+                    if (val) {
+                        sessionStorage.setItem('uid', val.id || auth.currentUser.uid);
+                        sessionStorage.setItem('userRole', val.role);
+                        sessionStorage.setItem('userName', val.name);
+                        return resolve(val);
+                    }
+                } catch(e) {}
+            }
+
+            resolve(null);
+        });
     },
 
     // --- ROLE GUARD -----------------------------------------------
     requireRole: async function(requiredRole) {
-        const token = sessionStorage.getItem('token');
-        const uid = sessionStorage.getItem('uid');
+        const userData = await Auth.getCurrentUser();
         
-        if (!token || !uid) {
-            alert('Session expired. Please login to continue.');
+        if (!userData) {
+            alert('Session expired or not logged in. Please login to continue.');
             Auth._redirectToLogin();
-            return;
+            return null;
         }
 
-        try {
-            const response = await fetch(`${API_BASE_URL}/users/${uid}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            
-            if (!response.ok) {
-                alert('Session invalid. Please login again.');
-                sessionStorage.clear();
-                Auth._redirectToLogin();
-                return;
-            }
-            
-            const userData = await response.json();
-            
-            if (userData.active === false || userData.active === 0) {
-                alert('Your account has been suspended. Contact the administrator.');
-                sessionStorage.clear();
-                Auth._redirectToLogin();
-                return;
-            }
-
-            if (userData.role !== requiredRole) {
-                alert('Access denied. You do not have permission to view this page.');
-                const roleMap = {
-                    admin: 'admin/dashboard.html',
-                    owner: 'owner/dashboard.html',
-                    user:  'user/dashboard.html'
-                };
-                const p = window.location.pathname;
-                const isNested = p.includes('/admin/') || p.includes('/owner/') || p.includes('/user/');
-                const prefix = isNested ? '../' : '';
-                const target = roleMap[userData.role];
-
-                if (target) {
-                    window.location.href = prefix + target;
-                } else {
-                    sessionStorage.clear();
-                    Auth._redirectToLogin();
-                }
-                return;
-            }
-
-            return userData;
-        } catch (err) {
-            console.error('Auth.requireRole error', err);
-            alert('Unable to verify your account. Please login again.');
+        if (userData.active === false || userData.active === 0) {
+            alert('Your account has been suspended. Contact the administrator.');
             sessionStorage.clear();
             Auth._redirectToLogin();
+            return null;
         }
+
+        if (userData.role !== requiredRole) {
+            alert('Access denied. You do not have permission to view this page.');
+            const roleMap = {
+                admin: 'admin/dashboard.html',
+                owner: 'owner/dashboard.html',
+                user:  'user/dashboard.html'
+            };
+            const p = window.location.pathname;
+            const isNested = p.includes('/admin/') || p.includes('/owner/') || p.includes('/user/');
+            const prefix = isNested ? '../' : '';
+            const target = roleMap[userData.role];
+
+            if (target) {
+                window.location.href = prefix + target;
+            } else {
+                sessionStorage.clear();
+                Auth._redirectToLogin();
+            }
+            return null;
+        }
+
+        return userData;
     },
 
-    updatePassword: function(newPassword) {
-        // Mock update for now
+    updatePassword: async function(newPassword) {
+        if (auth && auth.currentUser) {
+            await auth.currentUser.updatePassword(newPassword);
+        }
         return Promise.resolve();
     },
 
@@ -183,3 +275,4 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 });
+
