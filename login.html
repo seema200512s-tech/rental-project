@@ -48,16 +48,6 @@
                 <a href="register.html" class="fw-medium" style="font-size: 0.875rem;">Create an Account</a>
             </div>
         </form>
-
-        <hr class="my-4">
-        <div class="text-center">
-            <p class="mb-2 text-secondary-gray fw-semibold" style="font-size: 0.85rem;"><i class="fa-solid fa-key me-1"></i>Quick Demo Login</p>
-            <div class="d-flex justify-content-between gap-2">
-                <button type="button" class="btn btn-outline-primary btn-sm flex-fill" onclick="fillDemo('admin@rentride.com', 'admin123')">Admin</button>
-                <button type="button" class="btn btn-outline-secondary btn-sm flex-fill" onclick="fillDemo('owner@rentride.com', 'owner123')">Owner</button>
-                <button type="button" class="btn btn-outline-dark btn-sm flex-fill" onclick="fillDemo('seema@gmail.com', 'user123')">User</button>
-            </div>
-        </div>
     </div>
 
     <!-- Firebase CDN -->
@@ -69,20 +59,26 @@
     <script src="js/db.js"></script>
     <script src="js/auth.js"></script>
     <script>
-        function fillDemo(email, pass) {
-            document.getElementById('email').value = email;
-            document.getElementById('password').value = pass;
-        }
-
         // Seed initial data if DB is empty
         DB.seedIfEmpty();
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const redirectParam = urlParams.get('redirect');
+
+        function handleRedirect(userData) {
+            if (redirectParam) {
+                window.location.href = redirectParam;
+                return;
+            }
+            if (userData.role === 'admin') window.location.href = 'admin/dashboard.html';
+            else if (userData.role === 'owner') window.location.href = 'owner/dashboard.html';
+            else window.location.href = 'user/dashboard.html';
+        }
 
         // If already logged in, redirect
         Auth.getCurrentUser().then(userData => {
             if (userData) {
-                if (userData.role === 'admin') window.location.href = 'admin/dashboard.html';
-                else if (userData.role === 'owner') window.location.href = 'owner/dashboard.html';
-                else window.location.href = 'user/dashboard.html';
+                handleRedirect(userData);
             }
         });
 
@@ -109,9 +105,7 @@
                 msgBox.style.fontSize = '0.875rem';
 
                 setTimeout(() => {
-                    if (userData.role === 'admin') window.location.href = 'admin/dashboard.html';
-                    else if (userData.role === 'owner') window.location.href = 'owner/dashboard.html';
-                    else window.location.href = 'user/dashboard.html';
+                    handleRedirect(userData);
                 }, 800);
             } catch (err) {
                 let msg = 'Invalid email or password.';
@@ -130,5 +124,6 @@
             }
         });
     </script>
+    <script src="js/footer.js"></script>
 </body>
 </html>
