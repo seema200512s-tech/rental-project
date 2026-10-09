@@ -14,7 +14,18 @@ from config import Config
 
 app = Flask(__name__)
 app.config.from_object(Config)
-CORS(app)
+CORS(app, resources={
+    r"/*": {
+        "origins": [
+            "http://localhost:8000",
+            "http://127.0.0.1:8000",
+            "https://rental-project-tan.vercel.app"
+        ],
+        "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization", "Access-Control-Allow-Origin", "Accept"],
+        "supports_credentials": True
+    }
+})
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
