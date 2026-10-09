@@ -81,12 +81,12 @@
         </div>
     </div>
 
-    <!-- Firebase + Scripts -->
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
     <script src="../js/firebase-config.js"></script>
+    <script src="../js/api-config.js"></script>
     <script src="../js/db.js"></script>
     <script src="../js/auth.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -109,10 +109,12 @@
 
         async function init() {
             const owner = await Auth.requireRole('owner');
-            currentUserId = owner.uid;
+            currentUserId = owner.id || owner.uid;
             
             try {
-                const vehicles = await DB.getVehiclesByOwner(owner.uid);
+                const res = await fetch(window.RENTRIDE_API_URL + '/api/vehicles?ownerId=' + currentUserId);
+                if (!res.ok) throw new Error('Failed to fetch vehicles');
+                const vehicles = await res.json();
 
                 document.getElementById('loadingIndicator').style.display = 'none';
                 
@@ -197,7 +199,16 @@
             btn.textContent = 'Saving...';
 
             try {
-                await DB.updateVehicle(id, { price: price });
+                const token = sessionStorage.getItem('token');
+                const res = await fetch(window.RENTRIDE_API_URL + '/api/vehicles/' + id, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + token
+                    },
+                    body: JSON.stringify({ price: price })
+                });
+                if (!res.ok) throw new Error('API update failed');
                 document.getElementById(`price-${id}`).textContent = price;
                 editModal.hide();
             } catch (err) {
@@ -212,7 +223,16 @@
             const newStatus = isMaintenance ? 'Maintenance' : 'Available';
             if (confirm(`Mark this vehicle as ${newStatus}?`)) {
                 try {
-                    await DB.updateVehicle(id, { status: newStatus });
+                    const token = sessionStorage.getItem('token');
+                    const res = await fetch(window.RENTRIDE_API_URL + '/api/vehicles/' + id, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + token
+                        },
+                        body: JSON.stringify({ status: newStatus })
+                    });
+                    if (!res.ok) throw new Error('API update failed');
                     window.location.reload();
                 } catch (err) {
                     alert("Update failed.");
@@ -223,7 +243,14 @@
         window.deleteVehicle = async function(id) {
             if (confirm("WARNING: Are you sure you want to delete this vehicle entirely? This action cannot be undone.")) {
                 try {
-                    await DB.deleteVehicle(id);
+                    const token = sessionStorage.getItem('token');
+                    const res = await fetch(window.RENTRIDE_API_URL + '/api/vehicles/' + id, {
+                        method: 'DELETE',
+                        headers: {
+                            'Authorization': 'Bearer ' + token
+                        }
+                    });
+                    if (!res.ok) throw new Error('API delete failed');
                     document.getElementById(`card-${id}`).remove();
                     if (document.querySelectorAll('[id^="card-"]').length === 0) {
                         document.getElementById('vehicleGrid').classList.add('d-none');
