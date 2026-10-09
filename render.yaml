@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: rentride-api
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: MYSQL_HOST
+        sync: false        # fill in Render dashboard
+      - key: MYSQL_USER
+        sync: false
+      - key: MYSQL_PASSWORD
+        sync: false
+      - key: MYSQL_DB
+        value: rentride
+      - key: CORS_ORIGINS
+        value: https://rental-project-tan.vercel.app
