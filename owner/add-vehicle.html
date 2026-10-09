@@ -191,6 +191,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
     <script src="../js/firebase-config.js"></script>
+    <script src="../js/api-config.js"></script>
     <script src="../js/db.js"></script>
     <script src="../js/auth.js"></script>
     
@@ -247,17 +248,32 @@
             msgBox.classList.add('d-none');
 
             try {
-                // 1. Upload Image & Document to Firebase Storage
-                const fileName = `vehicles/${currentUser.id}_${Date.now()}_${selectedFile.name}`;
-                const imageUrl = await DB.uploadImage(selectedFile, fileName);
+                // 1. Upload Image to Flask Backend
+                const imgData = new FormData();
+                imgData.append('image', selectedFile);
+                const imgRes = await fetch(window.RENTRIDE_API_URL + '/api/vehicles/upload-image', {
+                    method: 'POST',
+                    body: imgData
+                });
+                if (!imgRes.ok) throw new Error('Failed to upload image');
+                const imgResData = await imgRes.json();
+                const imageUrl = window.RENTRIDE_API_URL + imgResData.url;
                 
+                // Upload Document to Flask Backend
                 const docFile = docInput.files[0];
-                const docName = `documents/${currentUser.id}_${Date.now()}_${docFile.name}`;
-                const docUrl = await DB.uploadImage(docFile, docName);
+                const docData = new FormData();
+                docData.append('image', docFile);
+                const docRes = await fetch(window.RENTRIDE_API_URL + '/api/vehicles/upload-image', {
+                    method: 'POST',
+                    body: docData
+                });
+                if (!docRes.ok) throw new Error('Failed to upload document');
+                const docResData = await docRes.json();
+                const docUrl = window.RENTRIDE_API_URL + docResData.url;
 
-                // 2. Save Vehicle to Realtime DB
+                // 2. Save Vehicle to Flask API
                 const vehicleData = {
-                    ownerId: currentUser.id,
+                    ownerId: currentUser.id || currentUser.uid,
                     ownerName: currentUser.name,
                     type: document.getElementById('vType').value,
                     brand: document.getElementById('vBrand').value.trim(),
@@ -276,7 +292,20 @@
                     submittedAt: new Date().toISOString()
                 };
 
-                await DB.addVehicle(vehicleData);
+                const token = sessionStorage.getItem('token');
+                const response = await fetch(window.RENTRIDE_API_URL + '/api/vehicles', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + token
+                    },
+                    body: JSON.stringify(vehicleData)
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(errorText || 'Server error saving vehicle');
+                }
 
                 msgBox.className = 'alert alert-success mb-4';
                 msgBox.innerHTML = '<i class="fa-solid fa-circle-check me-2"></i>Vehicle submitted successfully! It is pending admin approval.';
@@ -291,7 +320,7 @@
             } catch (err) {
                 console.error(err);
                 msgBox.className = 'alert alert-danger mb-4';
-                msgBox.innerHTML = '<i class="fa-solid fa-triangle-exclamation me-2"></i>Failed to add vehicle. ' + err.message;
+                msgBox.innerHTML = '<i class="fa-solid fa-triangle-exclamation me-2"></i>Failed to add vehicle. ' + (err.message || 'Unknown error');
                 msgBox.classList.remove('d-none');
             } finally {
                 btn.disabled = false;
