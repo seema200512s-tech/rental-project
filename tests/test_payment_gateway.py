@@ -4,9 +4,6 @@ import unittest
 import json
 import uuid
 import datetime
-import hmac
-import hashlib
-from unittest.mock import MagicMock, patch
 
 # Add project root and backend to path
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'backend'))
@@ -14,40 +11,48 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'
 
 from backend.app import app, get_db_connection, generate_jwt_token
 
-class PaymentGatewayTestCase(unittest.TestCase):
+class GooglePayUPIPaymentTestCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         app.config['TESTING'] = True
-        app.config['RAZORPAY_KEY_ID'] = 'rzp_test_mock_key_id'
-        app.config['RAZORPAY_KEY_SECRET'] = 'mock_secret_key_123456789'
-        app.config['RAZORPAY_WEBHOOK_SECRET'] = 'mock_webhook_secret_987654321'
         cls.client = app.test_client()
 
-        # Create or fetch test users in MySQL
+        # Create test users and vehicle
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
 
-        # Test Renter
-        cls.renter_id = f"renter-test-{uuid.uuid4().hex[:8]}"
-        cls.renter_email = f"renter_{uuid.uuid4().hex[:6]}@test.com"
+        cls.renter_id = f"renter-gpay-{uuid.uuid4().hex[:8]}"
+        cls.renter_email = f"renter_gpay_{uuid.uuid4().hex[:6]}@test.com"
         cursor.execute("""
             INSERT INTO users (id, name, email, password_hash, role, phone, active)
             VALUES (%s, %s, %s, 'hash', 'user', '9876543210', 1)
-        """, (cls.renter_id, 'Test Renter', cls.renter_email))
+        """, (cls.renter_id, 'Test GPay Renter', cls.renter_email))
 
-        # Test Owner
-        cls.owner_id = f"owner-test-{uuid.uuid4().hex[:8]}"
-        cls.owner_email = f"owner_{uuid.uuid4().hex[:6]}@test.com"
+        cls.owner_id = f"owner-gpay-{uuid.uuid4().hex[:8]}"
+        cls.owner_email = f"owner_gpay_{uuid.uuid4().hex[:6]}@test.com"
         cursor.execute("""
             INSERT INTO users (id, name, email, password_hash, role, phone, active)
             VALUES (%s, %s, %s, 'hash', 'owner', '9876543211', 1)
-        """, (cls.owner_id, 'Test Owner', cls.owner_email))
+        """, (cls.owner_id, 'Test GPay Owner', cls.owner_email))
 
-        # Test Vehicle
-        cls.vehicle_id = f"veh-test-{uuid.uuid4().hex[:8]}"
+        cls.admin_id = f"admin-gpay-{uuid.uuid4().hex[:8]}"
+        cls.admin_email = f"admin_gpay_{uuid.uuid4().hex[:6]}@test.com"
+        cursor.execute("""
+            INSERT INTO users (id, name, email, password_hash, role, phone, active)
+            VALUES (%s, %s, %s, 'hash', 'admin', '9876543212', 1)
+        """, (cls.admin_id, 'Test GPay Admin', cls.admin_email))
+
+        cls.other_user_id = f"other-gpay-{uuid.uuid4().hex[:8]}"
+        cls.other_user_email = f"other_gpay_{uuid.uuid4().hex[:6]}@test.com"
+        cursor.execute("""
+            INSERT INTO users (id, name, email, password_hash, role, phone, active)
+            VALUES (%s, %s, %s, 'hash', 'user', '9876543213', 1)
+        """, (cls.other_user_id, 'Other User', cls.other_user_email))
+
+        cls.vehicle_id = f"veh-gpay-{uuid.uuid4().hex[:8]}"
         cursor.execute("""
             INSERT INTO vehicles (id, owner_id, brand, model, year, type, transmission, fuel_type, seats, price, location, status)
-            VALUES (%s, %s, 'Hyundai', 'Creta', 2023, 'SUV', 'Automatic', 'Petrol', 5, 2000.00, 'Mumbai', 'Available')
+            VALUES (%s, %s, 'Toyota', 'Fortuner', 2024, 'SUV', 'Automatic', 'Diesel', 7, 3500.00, 'Bangalore', 'Available')
         """, (cls.vehicle_id, cls.owner_id))
 
         conn.commit()
@@ -55,6 +60,7 @@ class PaymentGatewayTestCase(unittest.TestCase):
         conn.close()
 
         cls.renter_token = generate_jwt_token(cls.renter_id, 'user', cls.renter_email)
+        cls.admin_token = generate_jwt_token(cls.admin_id, 'admin', cls.admin_email)
 
     @classmethod
     def tearDownClass(cls):
@@ -70,354 +76,158 @@ class PaymentGatewayTestCase(unittest.TestCase):
 
     def setUp(self):
         self.conn = get_db_connection()
-        self.cursor = self.conn.cursor(dictionary=True)
+        self.cursor = self.conn.cursor(dictionary=True, buffered=True)
 
     def tearDown(self):
         self.cursor.close()
         self.conn.close()
 
-    def create_test_booking(self, status='Pending', total_amount=4000.00, days=2, start_offset=10):
+    def create_test_booking(self, status='Pending', total_amount=7000.00, days=2, start_offset=10):
         start_date = datetime.date.today() + datetime.timedelta(days=start_offset)
         end_date = start_date + datetime.timedelta(days=days - 1)
-        bid = f"book-{uuid.uuid4().hex[:8]}"
+        bid = f"book-gpay-{uuid.uuid4().hex[:8]}"
 
         self.cursor.execute("""
             INSERT INTO bookings (id, vehicle_id, user_id, owner_id, start_date, end_date, status, total_amount, price_per_day, days, payment_status)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'Pending')
-        """, (bid, self.vehicle_id, self.renter_id, self.owner_id, start_date, end_date, status, total_amount, 2000.00, days))
+        """, (bid, self.vehicle_id, self.renter_id, self.owner_id, start_date, end_date, status, total_amount, 3500.00, days))
         self.conn.commit()
         return bid, start_date, end_date
 
-    # 1. Unauthenticated request must be rejected
-    def test_01_create_order_unauthenticated(self):
-        res = self.client.post('/api/payments/create-order', json={'bookingId': 'any-id'})
+    # 1. Unauthenticated request must return 401
+    def test_01_unauthenticated_payment(self):
+        res = self.client.post('/api/payments', json={'bookingId': 'any-id', 'referenceNo': '123456789012'})
         self.assertEqual(res.status_code, 401)
 
-    # 2. Missing booking ID must return 400
-    def test_02_create_order_missing_id(self):
-        res = self.client.post('/api/payments/create-order',
+    # 2. Missing bookingId must return 400
+    def test_02_missing_booking_id(self):
+        res = self.client.post('/api/payments',
                                headers={'Authorization': f'Bearer {self.renter_token}'},
-                               json={})
+                               json={'referenceNo': '123456789012'})
         self.assertEqual(res.status_code, 400)
         self.assertIn('Missing booking ID', json.loads(res.data).get('error', ''))
 
-    # 3. Create order uses actual MySQL amount and ignores any frontend tampering
-    @patch('backend.app.get_razorpay_client')
-    def test_03_create_order_trusts_only_mysql_amount(self, mock_client_factory):
-        mock_client = MagicMock()
-        mock_client.order.create.return_value = {
-            'id': 'order_mock_test_12345',
-            'amount': 400000,
-            'currency': 'INR',
-            'status': 'created'
-        }
-        mock_client_factory.return_value = mock_client
-
-        bid, _, _ = self.create_test_booking(total_amount=4000.00)
-
-        # Attacker tries to send fake amount: ₹1.00
-        res = self.client.post('/api/payments/create-order',
+    # 3. Missing reference number must return 400
+    def test_03_missing_reference_no(self):
+        bid, _, _ = self.create_test_booking()
+        res = self.client.post('/api/payments',
                                headers={'Authorization': f'Bearer {self.renter_token}'},
-                               json={'bookingId': bid, 'amount': 1.00})
+                               json={'bookingId': bid, 'referenceNo': ''})
+        self.assertEqual(res.status_code, 400)
+        self.assertIn('reference number is required', json.loads(res.data).get('error', '').lower())
 
-        self.assertEqual(res.status_code, 200)
-        data = json.loads(res.data)
-        self.assertEqual(data['orderId'], 'order_mock_test_12345')
-        self.assertEqual(data['amountInRupees'], 4000.00)
-        self.assertEqual(data['amount'], 400000) # In paise
+    # 4. Short reference number must return 400
+    def test_04_short_reference_no(self):
+        bid, _, _ = self.create_test_booking(start_offset=20)
+        res = self.client.post('/api/payments',
+                               headers={'Authorization': f'Bearer {self.renter_token}'},
+                               json={'bookingId': bid, 'referenceNo': '12'})
+        self.assertEqual(res.status_code, 400)
 
-        # Verify mock received 400000 paise (₹4000.00), not ₹1.00
-        mock_client.order.create.assert_called_once()
-        create_call_args = mock_client.order.create.call_args[1]['data']
-        self.assertEqual(create_call_args['amount'], 400000)
-
-    # 4. Overlapping confirmed booking blocks payment order
-    def test_04_create_order_detects_overlapping_booking(self):
-        bid1, s1, e1 = self.create_test_booking(status='Pending', start_offset=30)
-        # Create an existing confirmed booking overlapping the same dates
-        bid_conflict = f"conflict-{uuid.uuid4().hex[:8]}"
+    # 5. Cannot pay for another user's booking
+    def test_05_unauthorized_booking_access(self):
+        other_bid = f"book-other-{uuid.uuid4().hex[:8]}"
         self.cursor.execute("""
             INSERT INTO bookings (id, vehicle_id, user_id, owner_id, start_date, end_date, status, total_amount, price_per_day, days, payment_status)
-            VALUES (%s, %s, %s, %s, %s, %s, 'Confirmed', 4000.00, 2000.00, 2, 'Paid')
-        """, (bid_conflict, self.vehicle_id, self.renter_id, self.owner_id, s1, e1))
+            VALUES (%s, %s, %s, %s, '2026-11-01', '2026-11-03', 'Pending', 7000.00, 3500.00, 2, 'Pending')
+        """, (other_bid, self.vehicle_id, self.other_user_id, self.owner_id))
         self.conn.commit()
 
-        res = self.client.post('/api/payments/create-order',
+        res = self.client.post('/api/payments',
                                headers={'Authorization': f'Bearer {self.renter_token}'},
-                               json={'bookingId': bid1})
-        self.assertEqual(res.status_code, 409)
-        self.assertIn('already booked', json.loads(res.data).get('error', '').lower())
+                               json={'bookingId': other_bid, 'referenceNo': '123456789012'})
+        self.assertEqual(res.status_code, 403)
 
-    # 5. Payment signature verification fails on tampered/invalid signature
-    @patch('backend.app.get_razorpay_client')
-    def test_05_verify_payment_invalid_signature(self, mock_client_factory):
-        import razorpay.errors
-        mock_client = MagicMock()
-        mock_client.utility.verify_payment_signature.side_effect = razorpay.errors.SignatureVerificationError("Invalid signature")
-        mock_client_factory.return_value = mock_client
-
-        bid, _, _ = self.create_test_booking(start_offset=50)
-
-        res = self.client.post('/api/payments/verify',
+    # 6. Cannot pay for cancelled or rejected bookings
+    def test_06_cancelled_booking_rejected(self):
+        bid, _, _ = self.create_test_booking(status='Cancelled', start_offset=30)
+        res = self.client.post('/api/payments',
                                headers={'Authorization': f'Bearer {self.renter_token}'},
-                               json={
-                                   'bookingId': bid,
-                                   'razorpay_order_id': 'order_fake_123',
-                                   'razorpay_payment_id': 'pay_fake_456',
-                                   'razorpay_signature': 'invalid_signature_hex'
-                               })
+                               json={'bookingId': bid, 'referenceNo': '123456789012'})
         self.assertEqual(res.status_code, 400)
-        self.assertIn('Invalid payment signature', json.loads(res.data).get('error', ''))
 
-    # 6. Payment signature verified successfully -> Booking Confirmed & Payment Paid
-    @patch('backend.app.get_razorpay_client')
-    def test_06_verify_payment_success_and_confirmation(self, mock_client_factory):
-        order_id = f"order_{uuid.uuid4().hex[:12]}"
-        payment_id = f"pay_{uuid.uuid4().hex[:12]}"
-        secret = app.config['RAZORPAY_KEY_SECRET']
-        valid_signature = hmac.new(secret.encode('utf-8'), f"{order_id}|{payment_id}".encode('utf-8'), hashlib.sha256).hexdigest()
+    # 7. Successful payment confirmation sets status='Pending Verification' and uses MySQL amount
+    def test_07_successful_payment_confirmation(self):
+        bid, _, _ = self.create_test_booking(total_amount=7000.00, start_offset=40)
+        utr = f"GPAY-{uuid.uuid4().hex[:10].upper()}"
 
-        mock_client = MagicMock()
-        mock_client.utility.verify_payment_signature.return_value = True
-        mock_client.payment.fetch.return_value = {
-            'id': payment_id,
-            'order_id': order_id,
-            'amount': 400000,
-            'currency': 'INR',
-            'status': 'captured'
-        }
-        mock_client_factory.return_value = mock_client
-
-        bid, _, _ = self.create_test_booking(total_amount=4000.00, start_offset=70)
-
-        res = self.client.post('/api/payments/verify',
+        # Attacker sends fake amount ₹1.00 - server MUST ignore it and record ₹7000.00
+        res = self.client.post('/api/payments',
                                headers={'Authorization': f'Bearer {self.renter_token}'},
                                json={
                                    'bookingId': bid,
-                                   'razorpay_order_id': order_id,
-                                   'razorpay_payment_id': payment_id,
-                                   'razorpay_signature': valid_signature
+                                   'amount': 1.00,
+                                   'referenceNo': utr,
+                                   'method': 'Google Pay UPI',
+                                   'paymentProof': '/static/uploads/proof_test.png'
                                })
-
-        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.status_code, 201)
         data = json.loads(res.data)
         self.assertTrue(data['success'])
-        self.assertEqual(data['status'], 'Confirmed')
-        self.assertEqual(data['paymentId'], payment_id)
-        self.assertEqual(data['bookingId'], bid)
+        self.assertEqual(data['status'], 'Pending Verification')
+        self.assertEqual(data['amount'], 7000.00)
+        self.assertEqual(data['referenceNo'], utr)
 
-        # Verify database state
-        self.cursor.execute("SELECT status, payment_status, razorpay_order_id FROM bookings WHERE id = %s", (bid,))
-        updated_b = self.cursor.fetchone()
-        self.assertEqual(updated_b['status'], 'Confirmed')
-        self.assertEqual(updated_b['payment_status'], 'Paid')
-
-        self.cursor.execute("SELECT * FROM payments WHERE razorpay_payment_id = %s", (payment_id,))
-        pmt = self.cursor.fetchone()
-        self.assertIsNotNone(pmt)
-        self.assertEqual(pmt['status'], 'Paid')
-        self.assertEqual(pmt['method'], 'UPI_RAZORPAY')
-
-    # 7. Duplicate payment verification submission is idempotent
-    @patch('backend.app.get_razorpay_client')
-    def test_07_verify_payment_duplicate_idempotency(self, mock_client_factory):
-        order_id = f"order_{uuid.uuid4().hex[:12]}"
-        payment_id = f"pay_{uuid.uuid4().hex[:12]}"
-        secret = app.config['RAZORPAY_KEY_SECRET']
-        valid_signature = hmac.new(secret.encode('utf-8'), f"{order_id}|{payment_id}".encode('utf-8'), hashlib.sha256).hexdigest()
-
-        mock_client = MagicMock()
-        mock_client.utility.verify_payment_signature.return_value = True
-        mock_client.payment.fetch.return_value = {
-            'id': payment_id,
-            'order_id': order_id,
-            'amount': 400000,
-            'currency': 'INR',
-            'status': 'captured'
-        }
-        mock_client_factory.return_value = mock_client
-
-        bid, _, _ = self.create_test_booking(total_amount=4000.00, start_offset=90)
-
-        # 1st call
-        res1 = self.client.post('/api/payments/verify',
-                                headers={'Authorization': f'Bearer {self.renter_token}'},
-                                json={'bookingId': bid, 'razorpay_order_id': order_id, 'razorpay_payment_id': payment_id, 'razorpay_signature': valid_signature})
-        self.assertEqual(res1.status_code, 200)
-
-        # 2nd call with identical payment ID
-        res2 = self.client.post('/api/payments/verify',
-                                headers={'Authorization': f'Bearer {self.renter_token}'},
-                                json={'bookingId': bid, 'razorpay_order_id': order_id, 'razorpay_payment_id': payment_id, 'razorpay_signature': valid_signature})
-        self.assertEqual(res2.status_code, 200)
-        data2 = json.loads(res2.data)
-        self.assertTrue(data2.get('alreadyProcessed'))
-
-        # Verify only 1 payment row exists for this payment_id
-        self.cursor.execute("SELECT COUNT(*) AS cnt FROM payments WHERE razorpay_payment_id = %s", (payment_id,))
-        count = self.cursor.fetchone()['cnt']
-        self.assertEqual(count, 1)
-
-    # 8. Webhook rejects invalid signature
-    @patch('backend.app.get_razorpay_client')
-    def test_08_webhook_invalid_signature(self, mock_client_factory):
-        import razorpay.errors
-        mock_client = MagicMock()
-        mock_client.utility.verify_webhook_signature.side_effect = razorpay.errors.SignatureVerificationError("Invalid webhook signature")
-        mock_client_factory.return_value = mock_client
-
-        res = self.client.post('/api/payments/webhook',
-                               data=json.dumps({'event': 'payment.captured'}),
-                               headers={
-                                   'Content-Type': 'application/json',
-                                   'X-Razorpay-Signature': 'bogus_signature'
-                               })
-        self.assertEqual(res.status_code, 400)
-        self.assertIn('Invalid webhook signature', json.loads(res.data).get('error', ''))
-
-    # 9. Webhook processes payment.captured and guarantees idempotency
-    @patch('backend.app.get_razorpay_client')
-    def test_09_webhook_captured_and_idempotency(self, mock_client_factory):
-        mock_client = MagicMock()
-        mock_client.utility.verify_webhook_signature.return_value = True
-        mock_client_factory.return_value = mock_client
-
-        bid, _, _ = self.create_test_booking(total_amount=4000.00, start_offset=120)
-        order_id = f"order_{uuid.uuid4().hex[:12]}"
-        payment_id = f"pay_{uuid.uuid4().hex[:12]}"
-
-        # Set razorpay_order_id on booking
-        self.cursor.execute("UPDATE bookings SET razorpay_order_id = %s WHERE id = %s", (order_id, bid))
-        self.conn.commit()
-
-        webhook_body = {
-            'event': 'payment.captured',
-            'payload': {
-                'payment': {
-                    'entity': {
-                        'id': payment_id,
-                        'order_id': order_id,
-                        'amount': 400000,
-                        'currency': 'INR',
-                        'notes': {
-                            'booking_id': bid
-                        }
-                    }
-                }
-            }
-        }
-
-        # 1st webhook call
-        res1 = self.client.post('/api/payments/webhook',
-                                data=json.dumps(webhook_body),
-                                headers={
-                                    'Content-Type': 'application/json',
-                                    'X-Razorpay-Signature': 'valid_sig'
-                                })
-        self.assertEqual(res1.status_code, 200)
-
-        # Verify DB updated
+        # Verify DB booking payment_status is 'Pending Verification' (NOT 'Paid')
         self.cursor.execute("SELECT status, payment_status FROM bookings WHERE id = %s", (bid,))
-        b_state = self.cursor.fetchone()
-        self.assertEqual(b_state['status'], 'Confirmed')
-        self.assertEqual(b_state['payment_status'], 'Paid')
+        b_row = self.cursor.fetchone()
+        self.assertEqual(b_row['payment_status'], 'Pending Verification')
+        self.assertNotEqual(b_row['payment_status'], 'Paid')
 
-        # 2nd webhook call (duplicate delivery from gateway retry)
-        res2 = self.client.post('/api/payments/webhook',
-                                data=json.dumps(webhook_body),
-                                headers={
-                                    'Content-Type': 'application/json',
-                                    'X-Razorpay-Signature': 'valid_sig'
-                                })
-        self.assertEqual(res2.status_code, 200)
+        # Verify payment record
+        self.cursor.execute("SELECT * FROM payments WHERE id = %s", (data['id'],))
+        p_row = self.cursor.fetchone()
+        self.assertEqual(p_row['status'], 'Pending Verification')
+        self.assertEqual(float(p_row['amount']), 7000.00)
+        self.assertEqual(p_row['reference_no'], utr)
 
-        # Still exactly 1 payment record
-        self.cursor.execute("SELECT COUNT(*) AS cnt FROM payments WHERE razorpay_payment_id = %s", (payment_id,))
+    # 8. Re-submitting payment for same booking updates existing pending confirmation
+    def test_08_resubmission_updates_existing_pending(self):
+        bid, _, _ = self.create_test_booking(total_amount=7000.00, start_offset=60)
+        utr1 = f"GPAY-{uuid.uuid4().hex[:10].upper()}"
+        utr2 = f"GPAY-{uuid.uuid4().hex[:10].upper()}"
+
+        res1 = self.client.post('/api/payments',
+                                headers={'Authorization': f'Bearer {self.renter_token}'},
+                                json={'bookingId': bid, 'referenceNo': utr1})
+        self.assertEqual(res1.status_code, 201)
+        pid1 = json.loads(res1.data)['id']
+
+        # User updates their reference number / proof
+        res2 = self.client.post('/api/payments',
+                                headers={'Authorization': f'Bearer {self.renter_token}'},
+                                json={'bookingId': bid, 'referenceNo': utr2, 'paymentProof': '/static/uploads/proof2.png'})
+        self.assertEqual(res2.status_code, 201)
+        pid2 = json.loads(res2.data)['id']
+        self.assertEqual(pid1, pid2) # Same pending record updated
+
+        # Verify only 1 payment row exists for this booking
+        self.cursor.execute("SELECT COUNT(*) AS cnt FROM payments WHERE booking_id = %s", (bid,))
         count = self.cursor.fetchone()['cnt']
         self.assertEqual(count, 1)
 
-    # 10. Webhook records failed payment attempts
-    @patch('backend.app.get_razorpay_client')
-    def test_10_webhook_payment_failed(self, mock_client_factory):
-        mock_client = MagicMock()
-        mock_client.utility.verify_webhook_signature.return_value = True
-        mock_client_factory.return_value = mock_client
+    # 9. Admin verifies payment -> booking status becomes Confirmed, payment becomes Paid
+    def test_09_admin_verification_flow(self):
+        bid, _, _ = self.create_test_booking(total_amount=7000.00, start_offset=80)
+        utr = f"GPAY-{uuid.uuid4().hex[:10].upper()}"
 
-        bid, _, _ = self.create_test_booking(total_amount=4000.00, start_offset=140)
-        order_id = f"order_{uuid.uuid4().hex[:12]}"
-        payment_id = f"pay_failed_{uuid.uuid4().hex[:12]}"
-
-        webhook_body = {
-            'event': 'payment.failed',
-            'payload': {
-                'payment': {
-                    'entity': {
-                        'id': payment_id,
-                        'order_id': order_id,
-                        'amount': 400000,
-                        'currency': 'INR',
-                        'notes': {
-                            'booking_id': bid
-                        }
-                    }
-                }
-            }
-        }
-
-        res = self.client.post('/api/payments/webhook',
-                               data=json.dumps(webhook_body),
-                               headers={
-                                   'Content-Type': 'application/json',
-                                   'X-Razorpay-Signature': 'valid_sig'
-                               })
-        self.assertEqual(res.status_code, 200)
-
-        # Verify failed payment row was recorded
-        self.cursor.execute("SELECT status FROM payments WHERE razorpay_payment_id = %s", (payment_id,))
-        pmt = self.cursor.fetchone()
-        self.assertIsNotNone(pmt)
-        self.assertEqual(pmt['status'], 'Failed')
-
-    # 11. Verification blocks overlapping confirmed bookings if another booking was confirmed in between
-    @patch('backend.app.get_razorpay_client')
-    def test_11_verify_payment_blocks_overlap_race_condition(self, mock_client_factory):
-        order_id = f"order_{uuid.uuid4().hex[:12]}"
-        payment_id = f"pay_{uuid.uuid4().hex[:12]}"
-        secret = app.config['RAZORPAY_KEY_SECRET']
-        valid_signature = hmac.new(secret.encode('utf-8'), f"{order_id}|{payment_id}".encode('utf-8'), hashlib.sha256).hexdigest()
-
-        mock_client = MagicMock()
-        mock_client.utility.verify_payment_signature.return_value = True
-        mock_client.payment.fetch.return_value = {
-            'id': payment_id,
-            'order_id': order_id,
-            'amount': 400000,
-            'currency': 'INR',
-            'status': 'captured'
-        }
-        mock_client_factory.return_value = mock_client
-
-        bid, s, e = self.create_test_booking(total_amount=4000.00, start_offset=160)
-
-        # Another booking gets confirmed on the same dates before user verifies
-        bid_other = f"other-{uuid.uuid4().hex[:8]}"
-        self.cursor.execute("""
-            INSERT INTO bookings (id, vehicle_id, user_id, owner_id, start_date, end_date, status, total_amount, price_per_day, days, payment_status)
-            VALUES (%s, %s, %s, %s, %s, %s, 'Confirmed', 4000.00, 2000.00, 2, 'Paid')
-        """, (bid_other, self.vehicle_id, self.renter_id, self.owner_id, s, e))
-        self.conn.commit()
-
-        res = self.client.post('/api/payments/verify',
+        res = self.client.post('/api/payments',
                                headers={'Authorization': f'Bearer {self.renter_token}'},
-                               json={
-                                   'bookingId': bid,
-                                   'razorpay_order_id': order_id,
-                                   'razorpay_payment_id': payment_id,
-                                   'razorpay_signature': valid_signature
-                               })
-        self.assertEqual(res.status_code, 409)
-        self.assertIn('already booked', json.loads(res.data).get('error', '').lower())
+                               json={'bookingId': bid, 'referenceNo': utr})
+        self.assertEqual(res.status_code, 201)
+        pid = json.loads(res.data)['id']
+
+        # Admin approves
+        approve_res = self.client.put(f"/api/payments/{pid}",
+                                      headers={'Authorization': f'Bearer {self.admin_token}'},
+                                      json={'status': 'Paid', 'adminNote': 'Verified in GPay bank statement'})
+        self.assertEqual(approve_res.status_code, 200)
+
+        # Booking is now Confirmed and Paid
+        self.cursor.execute("SELECT status, payment_status FROM bookings WHERE id = %s", (bid,))
+        b_verified = self.cursor.fetchone()
+        self.assertEqual(b_verified['status'], 'Confirmed')
+        self.assertEqual(b_verified['payment_status'], 'Paid')
 
 if __name__ == '__main__':
     unittest.main()
-

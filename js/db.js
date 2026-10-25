@@ -207,18 +207,20 @@ const DB = {
     },
 
     // ─── PAYMENTS ─────────────────────────────────────
-    createPaymentOrder: async function(bookingId) {
-        return await this._api('/api/payments/create-order', {
+    uploadImage: async function(file) {
+        const formData = new FormData();
+        formData.append('image', file);
+        const apiUrl = window.RENTRIDE_API_URL || 'http://127.0.0.1:5000';
+        const res = await fetch(`${apiUrl}/api/vehicles/upload-image`, {
             method: 'POST',
-            body: { bookingId: bookingId }
+            body: formData
         });
-    },
-
-    verifyPayment: async function(verifyData) {
-        return await this._api('/api/payments/verify', {
-            method: 'POST',
-            body: verifyData
-        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || 'Failed to upload image.');
+        }
+        const data = await res.json();
+        return data.url;
     },
 
     addPayment: async function(paymentData) {
@@ -226,7 +228,7 @@ const DB = {
             method: 'POST',
             body: paymentData
         });
-        return res.id;
+        return res;
     },
 
     updatePayment: async function(paymentId, data) {

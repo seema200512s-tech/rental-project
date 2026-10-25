@@ -27,9 +27,4 @@ class Config:
     MYSQL_PORT = int(os.environ.get('MYSQL_PORT', 3306))
     UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'uploads')
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024
-
-    # Razorpay Payment Gateway Credentials
-    RAZORPAY_KEY_ID = os.environ.get('RAZORPAY_KEY_ID', '')
-    RAZORPAY_KEY_SECRET = os.environ.get('RAZORPAY_KEY_SECRET', '')
-    RAZORPAY_WEBHOOK_SECRET = os.environ.get('RAZORPAY_WEBHOOK_SECRET', '')
 
