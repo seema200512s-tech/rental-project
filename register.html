@@ -151,10 +151,16 @@
                 }, 1500);
             } catch (err) {
                 let msg = 'Registration failed.';
-                if (err.code === 'auth/email-already-in-use') msg = 'This email is already registered.';
-                else if (err.code === 'auth/weak-password') msg = 'Password is too weak. Use at least 6 characters.';
-                else if (err.code === 'auth/invalid-email') msg = 'Invalid email address.';
-                else if (err.message) msg = err.message;
+                if (err && (err.message || err.code)) {
+                    if (err.code === 'auth/email-already-in-use') msg = 'This email is already registered.';
+                    else if (err.code === 'auth/weak-password') msg = 'Password is too weak. Use at least 6 characters.';
+                    else if (err.code === 'auth/invalid-email') msg = 'Invalid email address.';
+                    else if (err.message && (err.message.includes('Failed to fetch') || err.message.includes('NetworkError'))) {
+                        msg = 'Cannot connect to backend server at http://127.0.0.1:5000. Please verify that the Flask backend is running.';
+                    } else if (err.message) {
+                        msg = err.message;
+                    }
+                }
 
                 msgBox.className = 'alert alert-danger p-2 mb-3 text-center';
                 msgBox.innerHTML = '<i class="fa-solid fa-circle-exclamation me-1"></i>' + msg;

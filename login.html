@@ -107,8 +107,12 @@
                 }, 800);
             } catch (err) {
                 let msg = 'Invalid email or password.';
-                if (err.message) {
-                    msg = err.message;
+                if (err && err.message) {
+                    if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
+                        msg = 'Cannot connect to backend server at http://127.0.0.1:5000. Please verify that the Flask backend is running.';
+                    } else {
+                        msg = err.message;
+                    }
                 }
 
                 msgBox.className = 'alert alert-danger p-2 mb-3 text-center';

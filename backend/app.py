@@ -8,25 +8,23 @@ import mysql.connector
 from mysql.connector import Error
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
+from werkzeug.exceptions import HTTPException
 import jwt
 
-from config import Config
+try:
+    from config import Config
+except ImportError:
+    from backend.config import Config
 
 app = Flask(__name__)
 app.config.from_object(Config)
 
-# Configure CORS dynamically
+# Configure CORS dynamically to allow local development on any port and production Vercel origins
 cors_origins_env = os.environ.get('CORS_ORIGINS', '')
 allowed_origins = [
-    "http://localhost:8000",
-    "http://127.0.0.1:8000",
-    "http://localhost:5500",
-    "http://127.0.0.1:5500",
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "http://localhost:5000",
-    "http://127.0.0.1:5000",
-    "https://rental-project-tan.vercel.app"
+    r"^http://localhost(:\d+)?$",
+    r"^http://127\.0\.0\.1(:\d+)?$",
+    r"^https:\/\/.*\.vercel\.app$"
 ]
 if cors_origins_env:
     for o in cors_origins_env.split(','):
@@ -34,7 +32,7 @@ if cors_origins_env:
             allowed_origins.append(o.strip())
 
 CORS(app, resources={
-    r"/*": {
+    r"/.*": {
         "origins": allowed_origins,
         "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization", "Access-Control-Allow-Origin", "Accept"],
@@ -55,6 +53,8 @@ def get_db_connection():
 
 @app.errorhandler(Exception)
 def handle_exception(e):
+    if isinstance(e, HTTPException):
+        return jsonify({'error': e.description}), e.code
     # Log securely without exposing stack traces or internal DB credentials
     app.logger.error(f"Internal error: {str(e)}")
     return jsonify({'error': 'An internal server error occurred. Please try again later.'}), 500

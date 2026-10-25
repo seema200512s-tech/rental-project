@@ -325,5 +325,41 @@ class RentRideTestCase(unittest.TestCase):
         self.assertEqual(owner_share_80, 8000.00)
         self.assertEqual(admin_share_20 + owner_share_80, amount)
 
+    # 7. Test CORS Preflight and Login from Live Server Origins
+    def test_07_cors_and_login_preflight(self):
+        live_server_origins = [
+            'http://127.0.0.1:5500',
+            'http://localhost:5500',
+            'http://127.0.0.1:5501',
+            'http://localhost:5501',
+            'https://rental-project-tan.vercel.app'
+        ]
+
+        for origin in live_server_origins:
+            # Preflight OPTIONS request on /api/login
+            opt_res = self.client.options('/api/login', headers={
+                'Origin': origin,
+                'Access-Control-Request-Method': 'POST',
+                'Access-Control-Request-Headers': 'Content-Type'
+            })
+            self.assertEqual(opt_res.status_code, 200, f"OPTIONS failed for origin {origin}")
+            self.assertEqual(opt_res.headers.get('Access-Control-Allow-Origin'), origin)
+
+            # Preflight OPTIONS request on /api/register
+            opt_reg = self.client.options('/api/register', headers={
+                'Origin': origin,
+                'Access-Control-Request-Method': 'POST',
+                'Access-Control-Request-Headers': 'Content-Type'
+            })
+            self.assertEqual(opt_reg.status_code, 200, f"OPTIONS failed for origin {origin}")
+            self.assertEqual(opt_reg.headers.get('Access-Control-Allow-Origin'), origin)
+
+        # Verify unauthorized external origin is NOT allowed
+        unauth_res = self.client.options('/api/login', headers={
+            'Origin': 'http://unauthorized-domain.com',
+            'Access-Control-Request-Method': 'POST'
+        })
+        self.assertIsNone(unauth_res.headers.get('Access-Control-Allow-Origin'))
+
 if __name__ == '__main__':
     unittest.main()

@@ -17,7 +17,13 @@ const DB = {
             headers['Content-Type'] = 'application/json';
             options.body = JSON.stringify(options.body);
         }
-        const res = await fetch(baseUrl + path, { ...options, headers });
+        let res;
+        try {
+            res = await fetch(baseUrl + path, { ...options, headers });
+        } catch (netErr) {
+            console.error(`Network error requesting ${path}:`, netErr);
+            throw new Error(`Cannot connect to backend server at ${baseUrl}. Please ensure the Flask backend is running on http://127.0.0.1:5000.`);
+        }
         if (!res.ok) {
             const err = await res.json().catch(() => ({}));
             throw new Error(err.error || `Request failed (${res.status})`);

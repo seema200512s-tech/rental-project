@@ -32,14 +32,20 @@ const Auth = {
 
             if (firebaseUser) {
                 // Exchange Firebase UID with backend
-                const sessionRes = await fetch(apiUrl + '/api/auth/session', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        uid: firebaseUser.uid,
-                        email: cleanEmail
-                    })
-                });
+                let sessionRes;
+                try {
+                    sessionRes = await fetch(apiUrl + '/api/auth/session', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            uid: firebaseUser.uid,
+                            email: cleanEmail
+                        })
+                    });
+                } catch (netErr) {
+                    console.error('Session sync network error:', netErr);
+                    throw new Error(`Cannot connect to backend server at ${apiUrl}. Please make sure the Flask backend is running on http://127.0.0.1:5000.`);
+                }
 
                 if (sessionRes.ok) {
                     const sessionData = await sessionRes.json();
@@ -55,14 +61,20 @@ const Auth = {
 
             // 3. Fallback: Authenticate directly against backend MySQL if Firebase Auth failed or account exists locally
             if (!userData) {
-                const loginRes = await fetch(apiUrl + '/api/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        email: cleanEmail,
-                        password: password
-                    })
-                });
+                let loginRes;
+                try {
+                    loginRes = await fetch(apiUrl + '/api/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            email: cleanEmail,
+                            password: password
+                        })
+                    });
+                } catch (netErr) {
+                    console.error('Login network error:', netErr);
+                    throw new Error(`Cannot connect to backend server at ${apiUrl}. Please make sure the Flask backend is running on http://127.0.0.1:5000.`);
+                }
 
                 if (loginRes.ok) {
                     const loginData = await loginRes.json();
@@ -147,20 +159,26 @@ const Auth = {
 
             // 2. Synchronize user record with MySQL backend
             const apiUrl = window.RENTRIDE_API_URL || 'http://127.0.0.1:5000';
-            const res = await fetch(apiUrl + '/api/register', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    uid: firebaseUid,
-                    name: name,
-                    email: cleanEmail,
-                    phone: phone || '',
-                    dob: dob || null,
-                    address: address || '',
-                    role: cleanRole,
-                    password: password
-                })
-            });
+            let res;
+            try {
+                res = await fetch(apiUrl + '/api/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        uid: firebaseUid,
+                        name: name,
+                        email: cleanEmail,
+                        phone: phone || '',
+                        dob: dob || null,
+                        address: address || '',
+                        role: cleanRole,
+                        password: password
+                    })
+                });
+            } catch (netErr) {
+                console.error('Registration network error:', netErr);
+                throw new Error(`Cannot connect to backend server at ${apiUrl}. Please make sure the Flask backend is running on http://127.0.0.1:5000.`);
+            }
 
             const resData = await res.json().catch(() => ({}));
             if (!res.ok) {

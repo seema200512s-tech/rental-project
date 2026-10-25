@@ -6,19 +6,24 @@
 (function() {
     const hostname = window.location.hostname;
     const urlParams = new URLSearchParams(window.location.search);
-    const customApi = urlParams.get('apiUrl') || localStorage.getItem('RENTRIDE_API_URL');
+    const queryApi = urlParams.get('apiUrl');
+    const storedApi = localStorage.getItem('RENTRIDE_API_URL');
 
-    if (customApi) {
-        window.RENTRIDE_API_URL = customApi.replace(/\/+$/, '');
-    } else if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.') || hostname.startsWith('10.')) {
-        window.RENTRIDE_API_URL = `http://${hostname || '127.0.0.1'}:5000`;
-    } else if (hostname === '') {
-        // Used when opening files directly via file:///
+    if (queryApi) {
+        window.RENTRIDE_API_URL = queryApi.replace(/\/+$/, '');
+        try { localStorage.setItem('RENTRIDE_API_URL', window.RENTRIDE_API_URL); } catch(e) {}
+    } else if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        // Force 127.0.0.1 on local development to avoid IPv6 (::1) vs IPv4 binding mismatch on Windows
+        const customLocal = storedApi && (storedApi.includes('127.0.0.1') || storedApi.includes('localhost')) ? storedApi : null;
+        window.RENTRIDE_API_URL = (customLocal || 'http://127.0.0.1:5000').replace('localhost', '127.0.0.1').replace(/\/+$/, '');
+    } else if (hostname === '' || window.location.protocol === 'file:') {
+        // Direct file opening via file:///
         window.RENTRIDE_API_URL = 'http://127.0.0.1:5000';
+    } else if (hostname.startsWith('192.168.') || hostname.startsWith('10.') || hostname.startsWith('172.')) {
+        // Local network testing
+        window.RENTRIDE_API_URL = storedApi || `http://${hostname}:5000`;
     } else {
-        // Default to same origin / local fallback if proxying, or configured backend host
-        window.RENTRIDE_API_URL = window.location.origin.includes('vercel.app')
-            ? (localStorage.getItem('RENTRIDE_API_URL') || `http://127.0.0.1:5000`)
-            : `${window.location.protocol}//${hostname}:5000`;
+        // Production / Vercel deployment: preserve configured API or fall back to current origin
+        window.RENTRIDE_API_URL = storedApi || window.location.origin;
     }
 })();
