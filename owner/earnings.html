@@ -114,6 +114,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
     <script src="../js/firebase-config.js"></script>
+    <script src="../js/api-config.js"></script>
     <script src="../js/db.js"></script>
     <script src="../js/auth.js"></script>
     
@@ -127,20 +128,19 @@
                 // We also need vehicles to show the name
                 const vehicles = await DB.getVehiclesByOwner(owner.uid);
 
-                // Stats calculation
+                // Stats calculation (80% owner share, 20% platform commission)
                 let totalEarned = 0;
                 let trips = 0;
-                // In a real app, pending payouts would be calculated based on what hasn't been transferred to the owner's bank yet.
-                // For this demo, we'll assume 10% of total is currently "processing" as an illustration.
                 
                 payments.forEach(p => {
                     if (p.status === 'Paid') {
-                        totalEarned += p.amount;
+                        const ownerShare = Math.floor(p.amount * 0.80);
+                        totalEarned += ownerShare;
                         trips++;
                     }
                 });
                 
-                const pendingPayouts = Math.floor(totalEarned * 0.1); 
+                const pendingPayouts = Math.floor(totalEarned * 0.10); 
 
                 document.getElementById('statTotal').textContent = '₹' + totalEarned.toLocaleString();
                 document.getElementById('statTrips').textContent = trips;

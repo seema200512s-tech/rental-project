@@ -1,150 +1,199 @@
-// js/db.js — Firebase Realtime Database & Storage Integration
+// js/db.js — Central Data Service connecting to RentRide Flask REST API & Firebase
+// ─────────────────────────────────────────────────────────────
 
 const DB = {
+    // Helper for authenticated API calls
+    _api: async function(path, options = {}) {
+        const baseUrl = window.RENTRIDE_API_URL || 'http://127.0.0.1:5000';
+        const token = sessionStorage.getItem('token');
+        const headers = {
+            'Accept': 'application/json',
+            ...(options.headers || {})
+        };
+        if (token && !headers['Authorization']) {
+            headers['Authorization'] = 'Bearer ' + token;
+        }
+        if (options.body && typeof options.body === 'object' && !(options.body instanceof FormData)) {
+            headers['Content-Type'] = 'application/json';
+            options.body = JSON.stringify(options.body);
+        }
+        const res = await fetch(baseUrl + path, { ...options, headers });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || `Request failed (${res.status})`);
+        }
+        return res.json();
+    },
 
     // ─── USERS ────────────────────────────────────────
     getUser: async function(uid) {
-        if (!uid || !database) return null;
-        const snap = await database.ref('users/' + uid).once('value');
-        return snap.val() || null;
+        if (!uid) return null;
+        try {
+            return await this._api(`/api/users/${uid}`);
+        } catch (e) {
+            console.warn('DB.getUser error:', e.message);
+            return null;
+        }
     },
 
     setUser: async function(uid, data) {
-        if (!database) return null;
-        await database.ref('users/' + uid).set(data);
-        return data;
+        return this.updateUser(uid, data);
     },
 
     updateUser: async function(uid, data) {
-        if (!database) return null;
-        await database.ref('users/' + uid).update(data);
-        return { success: true };
+        try {
+            return await this._api(`/api/users/${uid}`, {
+                method: 'PUT',
+                body: data
+            });
+        } catch (e) {
+            console.error('DB.updateUser error:', e);
+            throw e;
+        }
     },
 
     getAllUsers: async function() {
-        if (!database) return [];
-        const snap = await database.ref('users').once('value');
-        const val = snap.val() || {};
-        return Object.values(val);
+        try {
+            return await this._api('/api/users');
+        } catch (e) {
+            console.warn('DB.getAllUsers notice:', e.message);
+            return [];
+        }
     },
 
     getUsersByRole: async function(role) {
-        const users = await this.getAllUsers();
-        return users.filter(u => u.role === role);
+        try {
+            return await this._api(`/api/users?role=${encodeURIComponent(role)}`);
+        } catch (e) {
+            console.warn('DB.getUsersByRole notice:', e.message);
+            return [];
+        }
     },
 
     // ─── VEHICLES ─────────────────────────────────────
     addVehicle: async function(vehicleData) {
-        if (!database) throw new Error('Database not initialized');
-        const ref = database.ref('vehicles').push();
-        const id = ref.key;
-        const vehicleObj = {
-            ...vehicleData,
-            id: id,
-            status: vehicleData.status || 'Pending Approval',
-            createdAt: new Date().toISOString()
-        };
-        await ref.set(vehicleObj);
-        return id;
+        const res = await this._api('/api/vehicles', {
+            method: 'POST',
+            body: vehicleData
+        });
+        return res.id;
     },
 
     getVehicle: async function(vehicleId) {
-        if (!vehicleId || !database) return null;
-        const snap = await database.ref('vehicles/' + vehicleId).once('value');
-        return snap.val() || null;
+        if (!vehicleId) return null;
+        try {
+            return await this._api(`/api/vehicles/${vehicleId}`);
+        } catch (e) {
+            console.warn('DB.getVehicle error:', e.message);
+            return null;
+        }
     },
 
     updateVehicle: async function(vehicleId, data) {
-        if (!database) return { success: false };
-        await database.ref('vehicles/' + vehicleId).update(data);
-        return { success: true };
+        return await this._api(`/api/vehicles/${vehicleId}`, {
+            method: 'PUT',
+            body: data
+        });
     },
 
     deleteVehicle: async function(vehicleId) {
-        if (!database) return { success: false };
-        await database.ref('vehicles/' + vehicleId).remove();
-        return { success: true };
+        return await this._api(`/api/vehicles/${vehicleId}`, {
+            method: 'DELETE'
+        });
     },
 
     getAllVehicles: async function() {
-        if (!database) return [];
-        const snap = await database.ref('vehicles').once('value');
-        const val = snap.val() || {};
-        return Object.values(val);
+        try {
+            return await this._api('/api/vehicles');
+        } catch (e) {
+            console.warn('DB.getAllVehicles error:', e.message);
+            return [];
+        }
     },
 
     getVehiclesByOwner: async function(ownerId) {
-        const vehicles = await this.getAllVehicles();
-        return vehicles.filter(v => String(v.ownerId) === String(ownerId));
+        try {
+            return await this._api(`/api/vehicles?ownerId=${encodeURIComponent(ownerId)}`);
+        } catch (e) {
+            console.warn('DB.getVehiclesByOwner error:', e.message);
+            return [];
+        }
     },
 
     getAvailableVehicles: async function() {
-        const vehicles = await this.getAllVehicles();
-        return vehicles.filter(v => v.status === 'Available');
+        try {
+            return await this._api('/api/vehicles?status=Available');
+        } catch (e) {
+            console.warn('DB.getAvailableVehicles error:', e.message);
+            return [];
+        }
     },
 
     // ─── BOOKINGS ─────────────────────────────────────
     addBooking: async function(bookingData) {
-        if (!database) throw new Error('Database not initialized');
-        const ref = database.ref('bookings').push();
-        const id = ref.key;
-        const bookingObj = {
-            ...bookingData,
-            id: id,
-            status: bookingData.status || 'Confirmed',
-            createdAt: new Date().toISOString()
-        };
-        await ref.set(bookingObj);
-        return id;
+        const res = await this._api('/api/bookings', {
+            method: 'POST',
+            body: bookingData
+        });
+        return res.id;
     },
 
     getBooking: async function(bookingId) {
-        if (!bookingId || !database) return null;
-        const snap = await database.ref('bookings/' + bookingId).once('value');
-        return snap.val() || null;
+        if (!bookingId) return null;
+        try {
+            return await this._api(`/api/bookings/${bookingId}`);
+        } catch (e) {
+            console.warn('DB.getBooking error:', e.message);
+            return null;
+        }
     },
 
     updateBooking: async function(bookingId, data) {
-        if (!database) return { success: false };
-        await database.ref('bookings/' + bookingId).update(data);
-        return { success: true };
+        return await this._api(`/api/bookings/${bookingId}`, {
+            method: 'PUT',
+            body: data
+        });
     },
 
     getAllBookings: async function() {
-        if (!database) return [];
-        const snap = await database.ref('bookings').once('value');
-        const val = snap.val() || {};
-        return Object.values(val);
+        try {
+            return await this._api('/api/bookings');
+        } catch (e) {
+            console.warn('DB.getAllBookings error:', e.message);
+            return [];
+        }
     },
 
     getBookingsByUser: async function(userId) {
-        const bookings = await this.getAllBookings();
-        return bookings.filter(b => String(b.userId) === String(userId));
+        try {
+            return await this._api(`/api/bookings?userId=${encodeURIComponent(userId)}`);
+        } catch (e) {
+            console.warn('DB.getBookingsByUser error:', e.message);
+            return [];
+        }
     },
 
     getBookingsByOwner: async function(ownerId) {
-        const bookings = await this.getAllBookings();
-        return bookings.filter(b => String(b.ownerId) === String(ownerId));
+        try {
+            return await this._api(`/api/bookings?ownerId=${encodeURIComponent(ownerId)}`);
+        } catch (e) {
+            console.warn('DB.getBookingsByOwner error:', e.message);
+            return [];
+        }
     },
 
-    // ─── CRITICAL: DATE OVERLAP CHECK ─────────────────
+    // ─── SERVER-SIDE DATE OVERLAP CHECK ──────────────
     checkAvailability: async function(vehicleId, startDateStr, endDateStr) {
         try {
-            const start = new Date(startDateStr);
-            const end = new Date(endDateStr);
-            const allBookings = await this.getAllBookings();
-
-            const overlapping = allBookings.some(b => {
-                if (String(b.vehicleId) !== String(vehicleId)) return false;
-                if (b.status === 'Cancelled' || b.status === 'Rejected') return false;
-                
-                const bStart = new Date(b.startDate);
-                const bEnd = new Date(b.endDate);
-                
-                return (start <= bEnd && end >= bStart);
+            const res = await this._api('/api/bookings/check-availability', {
+                method: 'POST',
+                body: {
+                    vehicleId: vehicleId,
+                    startDate: startDateStr,
+                    endDate: endDateStr
+                }
             });
-
-            return !overlapping;
+            return res.available === true;
         } catch (e) {
             console.error('Error in checkAvailability:', e);
             return false;
@@ -153,100 +202,119 @@ const DB = {
 
     // ─── PAYMENTS ─────────────────────────────────────
     addPayment: async function(paymentData) {
-        if (!database) throw new Error('Database not initialized');
-        const ref = database.ref('payments').push();
-        const id = ref.key;
-        const paymentObj = {
-            ...paymentData,
-            id: id,
-            status: paymentData.status || 'Completed',
-            createdAt: new Date().toISOString()
-        };
-        await ref.set(paymentObj);
-        return id;
+        const res = await this._api('/api/payments', {
+            method: 'POST',
+            body: paymentData
+        });
+        return res.id;
     },
 
     updatePayment: async function(paymentId, data) {
-        if (!database) return { success: false };
-        await database.ref('payments/' + paymentId).update(data);
-        return { success: true };
+        return await this._api(`/api/payments/${paymentId}`, {
+            method: 'PUT',
+            body: data
+        });
     },
 
     getAllPayments: async function() {
-        if (!database) return [];
-        const snap = await database.ref('payments').once('value');
-        const val = snap.val() || {};
-        return Object.values(val);
+        try {
+            return await this._api('/api/payments');
+        } catch (e) {
+            console.warn('DB.getAllPayments error:', e.message);
+            return [];
+        }
     },
 
     getPaymentsByUser: async function(userId) {
-        const payments = await this.getAllPayments();
-        return payments.filter(p => String(p.userId) === String(userId));
+        try {
+            return await this._api(`/api/payments?userId=${encodeURIComponent(userId)}`);
+        } catch (e) {
+            console.warn('DB.getPaymentsByUser error:', e.message);
+            return [];
+        }
     },
 
     getPaymentsByOwner: async function(ownerId) {
-        const payments = await this.getAllPayments();
-        return payments.filter(p => String(p.ownerId) === String(ownerId));
+        try {
+            return await this._api(`/api/payments?ownerId=${encodeURIComponent(ownerId)}`);
+        } catch (e) {
+            console.warn('DB.getPaymentsByOwner error:', e.message);
+            return [];
+        }
     },
 
     // ─── FAVORITES ────────────────────────────────────
     addFavorite: async function(userId, vehicleId) {
-        if (!database) return { success: false };
-        await database.ref(`favorites/${userId}/${vehicleId}`).set(true);
-        return { success: true };
+        try {
+            await this._api('/api/favorites', {
+                method: 'POST',
+                body: { userId, vehicleId }
+            });
+            return { success: true };
+        } catch (e) {
+            return { success: false };
+        }
     },
 
     removeFavorite: async function(userId, vehicleId) {
-        if (!database) return { success: false };
-        await database.ref(`favorites/${userId}/${vehicleId}`).remove();
-        return { success: true };
+        try {
+            await this._api('/api/favorites', {
+                method: 'DELETE',
+                body: { userId, vehicleId }
+            });
+            return { success: true };
+        } catch (e) {
+            return { success: false };
+        }
     },
 
     getFavorites: async function(userId) {
-        if (!database) return [];
-        const snap = await database.ref(`favorites/${userId}`).once('value');
-        const val = snap.val() || {};
-        return Object.keys(val);
+        try {
+            return await this._api(`/api/favorites?userId=${encodeURIComponent(userId)}`);
+        } catch (e) {
+            return [];
+        }
     },
 
     isFavorite: async function(userId, vehicleId) {
-        if (!database) return false;
-        const snap = await database.ref(`favorites/${userId}/${vehicleId}`).once('value');
-        return snap.exists();
+        try {
+            const favs = await this.getFavorites(userId);
+            return favs.includes(vehicleId);
+        } catch (e) {
+            return false;
+        }
     },
 
     // ─── REVIEWS ──────────────────────────────────────
     addReview: async function(vehicleId, bookingId, reviewData) {
-        if (!database) throw new Error('Database not initialized');
-        const ref = database.ref('reviews').push();
-        const id = ref.key;
-        const reviewObj = {
-            ...reviewData,
-            vehicleId: vehicleId,
-            bookingId: bookingId,
-            id: id,
-            createdAt: new Date().toISOString()
-        };
-        await ref.set(reviewObj);
-        return id;
+        const res = await this._api('/api/reviews', {
+            method: 'POST',
+            body: {
+                vehicleId: vehicleId,
+                bookingId: bookingId,
+                rating: reviewData.rating,
+                text: reviewData.text || reviewData.reviewText
+            }
+        });
+        return res.id;
     },
 
     getReviewsForVehicle: async function(vehicleId) {
-        if (!database) return [];
-        const snap = await database.ref('reviews').once('value');
-        const val = snap.val() || {};
-        const reviews = Object.values(val);
-        return reviews.filter(r => String(r.vehicleId) === String(vehicleId));
+        try {
+            return await this._api(`/api/reviews?vehicleId=${encodeURIComponent(vehicleId)}`);
+        } catch (e) {
+            return [];
+        }
     },
 
     getAverageRating: async function(vehicleId) {
         try {
             const reviews = await this.getReviewsForVehicle(vehicleId);
-            if (!reviews || reviews.length === 0) return { avg: 0, count: 0 };
+            if (!reviews || reviews.length === 0) return { avg: '0.0', count: 0 };
             const sum = reviews.reduce((acc, r) => acc + Number(r.rating || 0), 0);
             return { avg: (sum / reviews.length).toFixed(1), count: reviews.length };
-        } catch(e) {
-            return { avg: 0, count: 0 };
+        } catch (e) {
+            return { avg: '0.0', count: 0 };
         }
     },
 
@@ -254,54 +322,72 @@ const DB = {
         try {
             const reviews = await this.getReviewsForVehicle(vehicleId);
             return reviews.some(r => String(r.bookingId) === String(bookingId));
-        } catch(e) {
+        } catch (e) {
             return false;
         }
     },
 
     // ─── MAINTENANCE ──────────────────────────────────
     addMaintenance: async function(data) {
-        if (!database) throw new Error('Database not initialized');
-        const ref = database.ref('maintenance').push();
-        const id = ref.key;
-        const mainObj = {
-            ...data,
-            id: id,
-            status: data.status || 'Pending',
-            createdAt: new Date().toISOString()
-        };
-        await ref.set(mainObj);
-        return id;
+        const res = await this._api('/api/maintenance', {
+            method: 'POST',
+            body: data
+        });
+        return res.id;
     },
 
     updateMaintenance: async function(id, data) {
-        if (!database) return { success: false };
-        await database.ref(`maintenance/${id}`).update(data);
-        return { success: true };
+        return await this._api(`/api/maintenance/${id}`, {
+            method: 'PUT',
+            body: data
+        });
     },
 
     getAllMaintenance: async function() {
-        if (!database) return [];
-        const snap = await database.ref('maintenance').once('value');
-        const val = snap.val() || {};
-        return Object.values(val);
+        try {
+            return await this._api('/api/maintenance');
+        } catch (e) {
+            return [];
+        }
     },
 
     getMaintenanceByOwner: async function(ownerId) {
-        const list = await this.getAllMaintenance();
-        return list.filter(m => String(m.ownerId) === String(ownerId));
+        try {
+            return await this._api(`/api/maintenance?ownerId=${encodeURIComponent(ownerId)}`);
+        } catch (e) {
+            return [];
+        }
     },
 
     // ─── IMAGE UPLOAD ─────────────────────────────────
     uploadImage: async function(file, pathStr) {
-        if (storage && file instanceof File) {
+        // Try Flask backend multipart upload first
+        if (file instanceof File || file instanceof Blob) {
+            try {
+                const formData = new FormData();
+                formData.append('image', file);
+                const baseUrl = window.RENTRIDE_API_URL || 'http://127.0.0.1:5000';
+                const res = await fetch(baseUrl + '/api/vehicles/upload-image', {
+                    method: 'POST',
+                    body: formData
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    return baseUrl + data.url;
+                }
+            } catch (err) {
+                console.warn('API upload failed, trying storage fallback:', err);
+            }
+        }
+
+        // Firebase Storage fallback
+        if (typeof storage !== 'undefined' && storage && file instanceof File) {
             try {
                 const storageRef = storage.ref(`uploads/${Date.now()}_${file.name}`);
                 const snapshot = await storageRef.put(file);
-                const downloadURL = await snapshot.ref.getDownloadURL();
-                return downloadURL;
+                return await snapshot.ref.getDownloadURL();
             } catch (err) {
-                console.warn('Firebase Storage upload failed, converting to Base64 image:', err);
+                console.warn('Firebase Storage upload failed:', err);
             }
         }
         
@@ -313,130 +399,80 @@ const DB = {
             if (file instanceof File || file instanceof Blob) {
                 reader.readAsDataURL(file);
             } else {
-                resolve(file); // Already a URL or string
+                resolve(file);
             }
         });
     },
 
     // ─── NOTIFICATIONS ────────────────────────────────
     createNotification: async function(notificationData) {
-        if (!database) return null;
-        const ref = database.ref('notifications').push();
-        const id = ref.key;
-        const notifObj = {
-            ...notificationData,
-            id: id,
-            status: 'unread',
-            createdAt: new Date().toISOString()
-        };
-        await ref.set(notifObj);
-        return id;
+        try {
+            const res = await this._api('/api/notifications', {
+                method: 'POST',
+                body: notificationData
+            });
+            return res.id;
+        } catch (e) {
+            return null;
+        }
     },
 
     markNotificationRead: async function(notificationId) {
-        if (!database) return { success: false };
-        await database.ref(`notifications/${notificationId}`).update({ status: 'read' });
-        return { success: true };
+        try {
+            await this._api(`/api/notifications/${notificationId}`, {
+                method: 'PUT',
+                body: { status: 'read' }
+            });
+            return { success: true };
+        } catch (e) {
+            return { success: false };
+        }
     },
 
     onAdminNotifications: function(callback) {
-        if (!database) return;
-        return database.ref('notifications').on('value', snap => {
-            const val = snap.val() || {};
-            const list = Object.values(val).filter(n => n.recipientRole === 'admin');
-            callback(list);
-        });
+        // Fetch via API
+        this._api('/api/notifications?recipientRole=admin').then(callback).catch(() => callback([]));
+        
+        // Also listen to Firebase RTDB if configured
+        if (typeof database !== 'undefined' && database) {
+            try {
+                database.ref('notifications').on('value', snap => {
+                    const val = snap.val() || {};
+                    const list = Object.values(val).filter(n => n.recipientRole === 'admin');
+                    if (list.length > 0) callback(list);
+                });
+            } catch (e) {}
+        }
     },
 
     onOwnerNotifications: function(ownerId, callback) {
-        if (!database) return;
-        return database.ref('notifications').on('value', snap => {
-            const val = snap.val() || {};
-            const list = Object.values(val).filter(n => String(n.recipientId) === String(ownerId));
-            callback(list);
-        });
+        // Fetch via API
+        this._api(`/api/notifications?recipientId=${encodeURIComponent(ownerId)}`).then(callback).catch(() => callback([]));
+        
+        // Also listen to Firebase RTDB if configured
+        if (typeof database !== 'undefined' && database) {
+            try {
+                database.ref('notifications').on('value', snap => {
+                    const val = snap.val() || {};
+                    const list = Object.values(val).filter(n => String(n.recipientId) === String(ownerId));
+                    if (list.length > 0) callback(list);
+                });
+            } catch (e) {}
+        }
     },
 
     offNotifications: function() {
-        if (database) {
-            database.ref('notifications').off();
+        if (typeof database !== 'undefined' && database) {
+            try {
+                database.ref('notifications').off();
+            } catch (e) {}
         }
     },
 
     // ─── SEED DATA ────────────────────────────────────
     seedIfEmpty: async function() {
-        if (!database) return;
-        try {
-            const snap = await database.ref('vehicles').once('value');
-            if (snap.exists() && Object.keys(snap.val() || {}).length > 0) {
-                return; // Already seeded
-            }
-
-            console.log('Seeding initial vehicle data into Firebase Realtime Database...');
-            const sampleVehicles = [
-                {
-                    id: "v1",
-                    brand: "Tesla",
-                    model: "Model 3",
-                    type: "Electric",
-                    year: 2023,
-                    fuel_type: "Electric",
-                    transmission: "Automatic",
-                    seats: 5,
-                    reg_no: "KA-01-EQ-1234",
-                    price: 4500,
-                    location: "Bangalore",
-                    description: "Sleek and eco-friendly electric sedan with Autopilot feature.",
-                    status: "Available",
-                    image_url: "https://images.unsplash.com/photo-1560958089-b8a1929cea89?w=800&auto=format&fit=crop&q=80",
-                    ownerId: "owner1"
-                },
-                {
-                    id: "v2",
-                    brand: "BMW",
-                    model: "X5",
-                    type: "SUV",
-                    year: 2022,
-                    fuel_type: "Petrol",
-                    transmission: "Automatic",
-                    seats: 7,
-                    reg_no: "KA-05-MH-9999",
-                    price: 6500,
-                    location: "Mumbai",
-                    description: "Luxury SUV with panoramic sunroof and premium audio system.",
-                    status: "Available",
-                    image_url: "https://images.unsplash.com/photo-1555215695-3004980ad54e?w=800&auto=format&fit=crop&q=80",
-                    ownerId: "owner1"
-                },
-                {
-                    id: "v3",
-                    brand: "Hyundai",
-                    model: "Creta",
-                    type: "SUV",
-                    year: 2023,
-                    fuel_type: "Diesel",
-                    transmission: "Manual",
-                    seats: 5,
-                    reg_no: "DL-03-CC-4321",
-                    price: 2500,
-                    location: "Delhi",
-                    description: "Reliable city SUV with great fuel economy and smooth ride.",
-                    status: "Available",
-                    image_url: "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?w=800&auto=format&fit=crop&q=80",
-                    ownerId: "owner2"
-                }
-            ];
-
-            const seedObj = {};
-            sampleVehicles.forEach(v => {
-                seedObj[v.id] = v;
-            });
-
-            await database.ref('vehicles').update(seedObj);
-            console.log('Firebase seeding complete.');
-        } catch (e) {
-            console.error('Failed to seed Firebase Realtime Database:', e);
-        }
+        // Database is maintained securely via MySQL and backend/init_db.py.
+        // No client-side public seeding needed, avoiding permission_denied errors.
+        return Promise.resolve();
     }
 };
-

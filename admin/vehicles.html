@@ -307,9 +307,7 @@
                         'Content-Type': 'application/json',
                         'Authorization': 'Bearer ' + token
                     },
-                    // We also save rejectionReason if API supports it, though backend app.py only expects status, description etc. 
-                    // Let's pass description if we want to save reason, but maybe just status is enough.
-                    body: JSON.stringify({ status: 'Rejected' })
+                    body: JSON.stringify({ status: 'Rejected', rejectionReason: reason })
                 });
                 if (!res.ok) throw new Error('API update failed');
                 alert("Vehicle rejected.");

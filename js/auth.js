@@ -1,73 +1,90 @@
-// js/auth.js — Firebase Auth & Realtime Database Integration
+// js/auth.js — Authentication with Firebase Auth & MySQL Backend
+// ─────────────────────────────────────────────────────────────
 
 const Auth = {
     // --- LOGIN ----------------------------------------------------
     login: async function(email, password) {
         const cleanEmail = (email || '').trim().toLowerCase();
+        if (!cleanEmail || !password) {
+            throw new Error('Please enter both email and password.');
+        }
+
         try {
-            let userCredential;
             let firebaseUser = null;
-            
-            if (auth) {
+            let firebaseError = null;
+
+            // 1. Try Firebase Authentication
+            if (typeof auth !== 'undefined' && auth) {
                 try {
-                    userCredential = await auth.signInWithEmailAndPassword(cleanEmail, password);
+                    const userCredential = await auth.signInWithEmailAndPassword(cleanEmail, password);
                     firebaseUser = userCredential.user;
                 } catch (authErr) {
-                    // Firebase auth failed - we will check database fallback below
+                    firebaseError = authErr;
+                    console.warn('Firebase Auth notice:', authErr.code || authErr.message);
                 }
             }
 
             let userData = null;
+            let token = null;
 
-            // 1. Try finding user in Realtime Database by UID if Firebase Auth succeeded
-            if (firebaseUser && database) {
-                const snapshot = await database.ref('users/' + firebaseUser.uid).once('value');
-                userData = snapshot.val();
+            // 2. Synchronize session with Flask REST API
+            const apiUrl = window.RENTRIDE_API_URL || 'http://127.0.0.1:5000';
+
+            if (firebaseUser) {
+                // Exchange Firebase UID with backend
+                const sessionRes = await fetch(apiUrl + '/api/auth/session', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        uid: firebaseUser.uid,
+                        email: cleanEmail
+                    })
+                });
+
+                if (sessionRes.ok) {
+                    const sessionData = await sessionRes.json();
+                    userData = sessionData.user;
+                    token = sessionData.token;
+                } else if (sessionRes.status === 403) {
+                    const errData = await sessionRes.json().catch(() => ({}));
+                    if (auth) await auth.signOut().catch(() => {});
+                    sessionStorage.clear();
+                    throw new Error(errData.error || 'Your account has been suspended. Please contact administrator.');
+                }
             }
 
-            // 2. Fallback: Search Realtime Database users node by email
-            if (!userData && database) {
-                const snap = await database.ref('users').once('value');
-                const allUsers = snap.val() || {};
-                userData = Object.values(allUsers).find(
-                    u => u.email && u.email.trim().toLowerCase() === cleanEmail
-                );
-            }
-
-            // 3. Fallback: Auto-create account if brand new email
+            // 3. Fallback: Authenticate directly against backend MySQL if Firebase Auth failed or account exists locally
             if (!userData) {
-                if (auth) {
-                    try {
-                        userCredential = await auth.createUserWithEmailAndPassword(cleanEmail, password || 'password123');
-                        firebaseUser = userCredential.user;
-                    } catch (e) {}
+                const loginRes = await fetch(apiUrl + '/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: cleanEmail,
+                        password: password
+                    })
+                });
+
+                if (loginRes.ok) {
+                    const loginData = await loginRes.json();
+                    userData = loginData.user;
+                    token = loginData.token;
+                } else {
+                    const errData = await loginRes.json().catch(() => ({}));
+                    if (loginRes.status === 403) {
+                        throw new Error(errData.error || 'Your account has been suspended.');
+                    }
+                    if (firebaseError && firebaseError.code === 'auth/wrong-password') {
+                        throw new Error('Incorrect password. Please try again.');
+                    }
+                    if (firebaseError && firebaseError.code === 'auth/user-not-found') {
+                        throw new Error('No account found with this email. Please register first.');
+                    }
+                    throw new Error(errData.error || 'Invalid email or password.');
                 }
-                
-                const newUid = firebaseUser ? firebaseUser.uid : 'user_' + Date.now();
-                let role = 'user';
-                let name = cleanEmail.split('@')[0];
-                
-                if (cleanEmail.includes('admin')) {
-                    role = 'admin';
-                    name = 'System Admin';
-                } else if (cleanEmail.includes('owner')) {
-                    role = 'owner';
-                    name = 'Vehicle Owner';
-                }
-                
-                userData = {
-                    id: newUid,
-                    uid: newUid,
-                    name: name,
-                    email: cleanEmail,
-                    role: role,
-                    active: true,
-                    createdAt: new Date().toISOString()
-                };
-                
-                if (database) {
-                    await database.ref('users/' + newUid).set(userData);
-                }
+            }
+
+            if (!userData || !token) {
+                throw new Error('Authentication failed. Please verify your credentials.');
             }
 
             if (userData.active === false || userData.active === 0) {
@@ -76,13 +93,8 @@ const Auth = {
                 throw new Error('Your account has been suspended. Please contact the administrator.');
             }
 
-            const userId = userData.id || userData.uid;
-            let token = 'token_' + Date.now();
-            if (firebaseUser) {
-                try { token = await firebaseUser.getIdToken(); } catch(e) {}
-            }
-
             // Store session
+            const userId = userData.id || userData.uid;
             sessionStorage.setItem('token', token);
             sessionStorage.setItem('uid', userId);
             sessionStorage.setItem('userRole', userData.role);
@@ -98,41 +110,64 @@ const Auth = {
     // --- REGISTER -------------------------------------------------
     register: async function(name, email, phone, dob, password, role, address) {
         const cleanEmail = (email || '').trim().toLowerCase();
+        const cleanRole = (role || 'user').trim().toLowerCase();
+
+        if (cleanRole !== 'user' && cleanRole !== 'owner') {
+            throw new Error('Invalid account role.');
+        }
+
+        if (dob && !Auth.checkAge18(dob)) {
+            throw new Error('You must be at least 18 years old to register.');
+        }
+
         try {
-            let userId = 'user_' + Date.now();
-            if (auth) {
+            let firebaseUid = null;
+
+            // 1. Create account in Firebase Authentication
+            if (typeof auth !== 'undefined' && auth) {
                 try {
                     const userCredential = await auth.createUserWithEmailAndPassword(cleanEmail, password);
                     const firebaseUser = userCredential.user;
-                    userId = firebaseUser.uid;
+                    firebaseUid = firebaseUser.uid;
                     if (name) {
                         await firebaseUser.updateProfile({ displayName: name }).catch(() => {});
                     }
                 } catch (authErr) {
                     if (authErr.code === 'auth/email-already-in-use') {
                         throw new Error('This email address is already registered. Please login.');
+                    } else if (authErr.code === 'auth/weak-password') {
+                        throw new Error('Password must be at least 6 characters.');
+                    } else if (authErr.code === 'auth/invalid-email') {
+                        throw new Error('Please enter a valid email address.');
+                    } else {
+                        console.warn('Firebase createUser notice:', authErr);
                     }
                 }
             }
 
-            const userData = {
-                id: userId,
-                uid: userId,
-                name: name,
-                email: cleanEmail,
-                phone: phone || '',
-                dob: dob || '',
-                role: role || 'user',
-                address: address || '',
-                active: true,
-                createdAt: new Date().toISOString()
-            };
+            // 2. Synchronize user record with MySQL backend
+            const apiUrl = window.RENTRIDE_API_URL || 'http://127.0.0.1:5000';
+            const res = await fetch(apiUrl + '/api/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    uid: firebaseUid,
+                    name: name,
+                    email: cleanEmail,
+                    phone: phone || '',
+                    dob: dob || null,
+                    address: address || '',
+                    role: cleanRole,
+                    password: password
+                })
+            });
 
-            if (database) {
-                await database.ref('users/' + userId).set(userData);
+            const resData = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error(resData.error || 'Failed to complete registration.');
             }
 
-            return { success: true, user: userData };
+            return { success: true, uid: resData.uid || firebaseUid };
         } catch (err) {
             console.error('Auth.register error:', err);
             throw err;
@@ -142,7 +177,9 @@ const Auth = {
     // --- LOGOUT ---------------------------------------------------
     logout: async function() {
         try {
-            if (auth) await auth.signOut();
+            if (typeof auth !== 'undefined' && auth) {
+                await auth.signOut().catch(() => {});
+            }
         } catch (e) {
             console.error('Error signing out:', e);
         }
@@ -160,40 +197,59 @@ const Auth = {
 
     // --- GET CURRENT USER -----------------------------------------
     getCurrentUser: async function() {
-        return new Promise(async (resolve) => {
-            const uid = sessionStorage.getItem('uid');
-            if (uid && database) {
-                try {
-                    const snap = await database.ref('users/' + uid).once('value');
-                    if (snap.exists()) {
-                        return resolve(snap.val());
-                    }
-                    const allSnap = await database.ref('users').once('value');
-                    const allUsers = allSnap.val() || {};
-                    const found = Object.values(allUsers).find(
-                        u => String(u.id) === String(uid) || String(u.uid) === String(uid)
-                    );
-                    if (found) return resolve(found);
-                } catch (e) {
-                    console.error('getCurrentUser RTDB error:', e);
+        const token = sessionStorage.getItem('token');
+        const uid = sessionStorage.getItem('uid');
+
+        if (!token && !uid) {
+            return null;
+        }
+
+        const apiUrl = window.RENTRIDE_API_URL || 'http://127.0.0.1:5000';
+
+        // Validate session with backend
+        if (token) {
+            try {
+                const res = await fetch(apiUrl + '/api/auth/me', {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    const user = data.user;
+                    sessionStorage.setItem('uid', user.id);
+                    sessionStorage.setItem('userRole', user.role);
+                    sessionStorage.setItem('userName', user.name);
+                    return user;
+                }
+            } catch (e) {
+                // If offline / network error, fallback to session storage values
+                const fallbackRole = sessionStorage.getItem('userRole');
+                const fallbackName = sessionStorage.getItem('userName');
+                if (fallbackRole && uid) {
+                    return { id: uid, uid: uid, role: fallbackRole, name: fallbackName, active: true };
                 }
             }
+        }
 
-            if (auth && auth.currentUser && database) {
-                try {
-                    const snap = await database.ref('users/' + auth.currentUser.uid).once('value');
-                    const val = snap.val();
-                    if (val) {
-                        sessionStorage.setItem('uid', val.id || auth.currentUser.uid);
-                        sessionStorage.setItem('userRole', val.role);
-                        sessionStorage.setItem('userName', val.name);
-                        return resolve(val);
-                    }
-                } catch(e) {}
-            }
+        // Try restoring from Firebase Auth currentUser
+        if (typeof auth !== 'undefined' && auth && auth.currentUser) {
+            try {
+                const sessionRes = await fetch(apiUrl + '/api/auth/session', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ uid: auth.currentUser.uid, email: auth.currentUser.email })
+                });
+                if (sessionRes.ok) {
+                    const sessionData = await sessionRes.json();
+                    sessionStorage.setItem('token', sessionData.token);
+                    sessionStorage.setItem('uid', sessionData.user.id);
+                    sessionStorage.setItem('userRole', sessionData.user.role);
+                    sessionStorage.setItem('userName', sessionData.user.name);
+                    return sessionData.user;
+                }
+            } catch (e) {}
+        }
 
-            resolve(null);
-        });
+        return null;
     },
 
     // --- ROLE GUARD -----------------------------------------------
@@ -238,7 +294,7 @@ const Auth = {
     },
 
     updatePassword: async function(newPassword) {
-        if (auth && auth.currentUser) {
+        if (typeof auth !== 'undefined' && auth && auth.currentUser) {
             await auth.currentUser.updatePassword(newPassword);
         }
         return Promise.resolve();
@@ -275,4 +331,3 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 });
-

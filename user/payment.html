@@ -30,8 +30,14 @@
                     <form id="paymentForm">
                         <div id="upiDetails" class="mb-4 text-center">
                             <h6 class="fw-bold mb-3">Scan this QR code using any UPI app and complete the payment.</h6>
-                            <img src="../backend/static/uploads/upi_qr.png" alt="UPI QR Code" class="img-fluid border rounded p-2 mb-3" style="max-width: 250px;">
+                            <img id="upiQrImg" src="../backend/static/uploads/upi_qr.png" alt="UPI QR Code" class="img-fluid border rounded p-2 mb-3 shadow-sm" style="max-width: 250px;">
                             <p class="text-secondary-gray small fw-bold">Amount: ₹<span id="qrAmount">0</span></p>
+                        </div>
+
+                        <div class="mb-4 text-start">
+                            <label class="form-label fw-medium small">UPI Reference / UTR Number (Optional)</label>
+                            <input type="text" id="upiRef" class="form-control form-control-custom" placeholder="e.g. 12-digit UPI Transaction ID">
+                            <div class="form-text small">Enter transaction ID after making payment in your UPI app.</div>
                         </div>
 
                         <button type="button" class="btn btn-success w-100 py-3 fw-bold fs-5 shadow-sm" id="completedBtn">
@@ -78,6 +84,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
     <script src="../js/firebase-config.js"></script>
+    <script src="../js/api-config.js"></script>
     <script src="../js/db.js"></script>
     <script src="../js/auth.js"></script>
     
@@ -148,8 +155,8 @@
             // Simulate network delay
             setTimeout(async () => {
                 try {
-                    // Create Payment Record
-                    const status = 'Pending Verification';
+                    const refInput = document.getElementById('upiRef');
+                    const refVal = refInput ? refInput.value.trim() : '';
                     const paymentData = {
                         bookingId: currentBooking.id,
                         userId: currentUser.id,
@@ -157,6 +164,7 @@
                         vehicleId: currentBooking.vehicleId,
                         amount: currentBooking.totalAmount,
                         method: 'UPI',
+                        referenceNo: refVal,
                         status: status,
                         paymentDate: new Date().toISOString()
                     };

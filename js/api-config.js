@@ -1,20 +1,24 @@
 // js/api-config.js
 // ─────────────────────────────────────────────────────────────
-// Set window.RENTRIDE_API_URL to your deployed Flask backend URL.
+// Configuration for RentRide Flask REST API Backend URL
 // ─────────────────────────────────────────────────────────────
 
-const hostname = window.location.hostname;
+(function() {
+    const hostname = window.location.hostname;
+    const urlParams = new URLSearchParams(window.location.search);
+    const customApi = urlParams.get('apiUrl') || localStorage.getItem('RENTRIDE_API_URL');
 
-// ⚠️ CHANGE THIS to your main laptop's WiFi IP address (e.g., '192.168.1.5') 
-// if you are opening the HTML files directly on another laptop without a web server.
-const MAIN_LAPTOP_IP = '127.0.0.1';
-
-if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.') || hostname.startsWith('10.')) {
-    window.RENTRIDE_API_URL = `http://${hostname}:5000`;
-} else if (hostname === '') {
-    // Used when opening files directly via file:///
-    window.RENTRIDE_API_URL = `http://${MAIN_LAPTOP_IP}:5000`;
-} else {
-    // Production URL (Render backend)
-    window.RENTRIDE_API_URL = 'https://rentride-api.onrender.com';
-}
+    if (customApi) {
+        window.RENTRIDE_API_URL = customApi.replace(/\/+$/, '');
+    } else if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.') || hostname.startsWith('10.')) {
+        window.RENTRIDE_API_URL = `http://${hostname || '127.0.0.1'}:5000`;
+    } else if (hostname === '') {
+        // Used when opening files directly via file:///
+        window.RENTRIDE_API_URL = 'http://127.0.0.1:5000';
+    } else {
+        // Default to same origin / local fallback if proxying, or configured backend host
+        window.RENTRIDE_API_URL = window.location.origin.includes('vercel.app')
+            ? (localStorage.getItem('RENTRIDE_API_URL') || `http://127.0.0.1:5000`)
+            : `${window.location.protocol}//${hostname}:5000`;
+    }
+})();
