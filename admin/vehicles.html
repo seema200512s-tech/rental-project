@@ -150,7 +150,10 @@
 
             try {
                 // Fetch ALL vehicles using Flask API
-                const res = await fetch(window.RENTRIDE_API_URL + '/api/vehicles');
+                const token = sessionStorage.getItem('token');
+                const res = await fetch(window.RENTRIDE_API_URL + '/api/vehicles?all=true', {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
                 if (!res.ok) throw new Error('Failed to fetch vehicles');
                 const vehicles = await res.json();
                 

@@ -107,6 +107,8 @@ const Auth = {
 
             // Store session
             const userId = userData.id || userData.uid;
+            if (!userData.uid) userData.uid = userId;
+            if (!userData.id) userData.id = userId;
             sessionStorage.setItem('token', token);
             sessionStorage.setItem('uid', userId);
             sessionStorage.setItem('userRole', userData.role);
@@ -233,6 +235,8 @@ const Auth = {
                 if (res.ok) {
                     const data = await res.json();
                     const user = data.user;
+                    if (!user.uid) user.uid = user.id;
+                    if (!user.id) user.id = user.uid;
                     sessionStorage.setItem('uid', user.id);
                     sessionStorage.setItem('userRole', user.role);
                     sessionStorage.setItem('userName', user.name);

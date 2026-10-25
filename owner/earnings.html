@@ -123,10 +123,10 @@
             const owner = await Auth.requireRole('owner');
 
             try {
-                const payments = await DB.getPaymentsByOwner(owner.uid);
+                const payments = await DB.getPaymentsByOwner(owner.id);
                 
                 // We also need vehicles to show the name
-                const vehicles = await DB.getVehiclesByOwner(owner.uid);
+                const vehicles = await DB.getVehiclesByOwner(owner.id);
 
                 // Stats calculation (80% owner share, 20% platform commission)
                 let totalEarned = 0;
@@ -168,7 +168,7 @@
                             <tr>
                                 <td>${date}</td>
                                 <td class="fw-medium">${vName}</td>
-                                <td><span class="text-secondary-gray small">#${p.bookingId.substring(1, 8).toUpperCase()}</span></td>
+                                <td><span class="text-secondary-gray small">#${p.bookingId.substring(0, 8).toUpperCase()}</span></td>
                                 <td>${p.method}</td>
                                 <td class="fw-bold text-primary">₹${p.amount.toLocaleString()}</td>
                                 <td><span class="badge-custom ${badgeClass}">${p.status}</span></td>

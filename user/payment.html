@@ -165,15 +165,11 @@
                         amount: currentBooking.totalAmount,
                         method: 'UPI',
                         referenceNo: refVal,
-                        status: status,
                         paymentDate: new Date().toISOString()
                     };
 
+                    // addPayment also sets booking payment_status = 'Pending Verification' on the backend
                     await DB.addPayment(paymentData);
-
-                    // Update Booking Status
-                    let updateData = { paymentStatus: status };
-                    await DB.updateBooking(currentBooking.id, updateData);
 
                     alertBox.className = 'alert alert-success mb-4';
                     alertBox.innerHTML = '<i class="fa-solid fa-circle-check me-2"></i>Payment details submitted! Awaiting admin verification. Redirecting...';

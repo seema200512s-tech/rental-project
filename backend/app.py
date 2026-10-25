@@ -300,8 +300,22 @@ def get_users(current_user):
 @app.route('/api/users/<uid>', methods=['GET'])
 @token_required
 def get_user(current_user, uid):
-    # Only Admin or the user themselves can view this profile
-    if current_user['role'] != 'admin' and current_user['id'] != uid:
+    # Admin, the user themselves, or an owner whose vehicle was booked by this user can view the profile
+    is_authorized = current_user['role'] == 'admin' or current_user['id'] == uid
+    if not is_authorized and current_user['role'] == 'owner':
+        chk_conn = get_db_connection()
+        chk_cur = chk_conn.cursor()
+        chk_cur.execute("""
+            SELECT 1 FROM bookings b 
+            JOIN vehicles v ON b.vehicle_id = v.id 
+            WHERE b.user_id = %s AND v.owner_id = %s LIMIT 1
+        """, (uid, current_user['id']))
+        if chk_cur.fetchone():
+            is_authorized = True
+        chk_cur.close()
+        chk_conn.close()
+
+    if not is_authorized:
         return jsonify({'error': 'Access denied to this user profile.'}), 403
 
     conn = get_db_connection()
@@ -369,6 +383,7 @@ def get_vehicles():
     cursor = conn.cursor(dictionary=True)
     owner_id = request.args.get('ownerId')
     status = request.args.get('status')
+    show_all = request.args.get('all') == 'true'
     
     query = "SELECT * FROM vehicles WHERE 1=1"
     params = []
@@ -382,9 +397,23 @@ def get_vehicles():
     elif status:
         query += " AND status = %s"
         params.append(status)
+    elif show_all:
+        # Admin or management view of all vehicles regardless of status
+        pass
     else:
-        # If public request without filter, default to only Available vehicles
-        query += " AND status = 'Available'"
+        # Check if caller passed an admin token in Authorization header
+        is_admin = False
+        auth_header = request.headers.get('Authorization')
+        if auth_header and auth_header.startswith('Bearer '):
+            try:
+                token = auth_header.split(' ')[1]
+                decoded = jwt.decode(token, app.config['SECRET_KEY'], algorithms=["HS256"])
+                if decoded.get('role') == 'admin':
+                    is_admin = True
+            except Exception:
+                pass
+        if not is_admin:
+            query += " AND status = 'Available'"
         
     query += " ORDER BY created_at DESC"
     cursor.execute(query, tuple(params))
@@ -426,11 +455,39 @@ def get_vehicle(vid):
 @token_required
 @role_required(['owner', 'admin'])
 def add_vehicle(current_user):
-    data = request.get_json() or {}
-    vid = str(uuid.uuid4())
-    owner_id = current_user['id'] if current_user['role'] != 'admin' else (data.get('ownerId') or current_user['id'])
+    # Support both JSON payload and multipart/form-data
+    if request.is_json:
+        data = request.get_json() or {}
+        image_url = data.get('imageUrl')
+        document_url = data.get('documentUrl')
+    else:
+        data = request.form.to_dict()
+        image_url = data.get('imageUrl')
+        document_url = data.get('documentUrl')
+        
+        # Handle uploaded image directly if sent via multipart
+        if 'image' in request.files and request.files['image'].filename:
+            img_file = request.files['image']
+            img_fname = secure_filename(f"{uuid.uuid4()}_{img_file.filename}")
+            img_file.save(os.path.join(app.config['UPLOAD_FOLDER'], img_fname))
+            image_url = f"/static/uploads/{img_fname}"
+            
+        if 'document' in request.files and request.files['document'].filename:
+            doc_file = request.files['document']
+            doc_fname = secure_filename(f"{uuid.uuid4()}_{doc_file.filename}")
+            doc_file.save(os.path.join(app.config['UPLOAD_FOLDER'], doc_fname))
+            document_url = f"/static/uploads/{doc_fname}"
 
-    # Validate price
+    brand = (data.get('brand') or '').strip()
+    model = (data.get('model') or '').strip()
+    v_type = (data.get('type') or 'Car').strip()
+    reg_no = (data.get('regNo') or '').strip().upper()
+    location = (data.get('location') or 'Bangalore').strip()
+    description = (data.get('description') or '').strip()
+
+    if not brand or not model:
+        return jsonify({'error': 'Vehicle brand and model are required.'}), 400
+
     try:
         price = float(data.get('price', 0))
         if price <= 0:
@@ -438,27 +495,49 @@ def add_vehicle(current_user):
     except (ValueError, TypeError):
         return jsonify({'error': 'Invalid price value.'}), 400
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        """INSERT INTO vehicles (id, owner_id, brand, model, type, year, fuel_type, transmission, seats, reg_no, price, location, description, status, image_url, document_url) 
-           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-        (vid, owner_id, data.get('brand'), data.get('model'), data.get('type', 'Sedan'), data.get('year', 2023), 
-         data.get('fuelType', 'Petrol'), data.get('transmission', 'Automatic'), data.get('seats', 5), data.get('regNo'), 
-         price, data.get('location', 'Bangalore'), data.get('description'), 'Pending Approval', data.get('imageUrl'), data.get('documentUrl'))
-    )
-    
-    # Notify admin about new vehicle submission
-    cursor.execute(
-        """INSERT INTO notifications (id, recipient_role, title, message, type)
-           VALUES (%s, 'admin', %s, %s, 'vehicle_approval')""",
-        (str(uuid.uuid4()), 'New Vehicle Listing Awaiting Approval', f"{data.get('brand')} {data.get('model')} listed by owner.")
-    )
-    
-    conn.commit()
-    cursor.close()
-    conn.close()
-    return jsonify({'id': vid, 'success': True}), 201
+    try:
+        year = int(data.get('year', datetime.date.today().year))
+    except (ValueError, TypeError):
+        year = datetime.date.today().year
+
+    try:
+        seats = int(data.get('seats', 5))
+    except (ValueError, TypeError):
+        seats = 5
+
+    vid = str(uuid.uuid4())
+    owner_id = current_user['id'] if current_user['role'] != 'admin' else (data.get('ownerId') or current_user['id'])
+
+    cursor = None
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """INSERT INTO vehicles (id, owner_id, brand, model, type, year, fuel_type, transmission, seats, reg_no, price, location, description, status, image_url, document_url) 
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+            (vid, owner_id, brand, model, v_type, year, 
+             data.get('fuelType', 'Petrol'), data.get('transmission', 'Automatic'), seats, reg_no, 
+             price, location, description, 'Pending Approval', image_url, document_url)
+        )
+        
+        # Notify admin about new vehicle submission
+        cursor.execute(
+            """INSERT INTO notifications (id, recipient_role, title, message, type)
+               VALUES (%s, 'admin', %s, %s, 'vehicle_approval')""",
+            (str(uuid.uuid4()), 'New Vehicle Listing Awaiting Approval', f"{brand} {model} listed by owner.")
+        )
+        
+        conn.commit()
+        return jsonify({'id': vid, 'success': True, 'message': 'Vehicle submitted successfully for admin approval.'}), 201
+    except mysql.connector.Error as err:
+        app.logger.error(f"Database error in add_vehicle: {str(err)}")
+        return jsonify({'error': f'Database error: {str(err)}'}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
 @app.route('/api/vehicles/<vid>', methods=['PUT'])
 @token_required
@@ -565,15 +644,20 @@ def delete_vehicle(current_user, vid):
 
 @app.route('/api/vehicles/upload-image', methods=['POST'])
 def upload_image():
-    if 'image' not in request.files:
-        return jsonify({'error': 'No file part provided.'}), 400
-    file = request.files['image']
-    if file.filename == '':
+    file = None
+    for key in ['image', 'document', 'file']:
+        if key in request.files:
+            file = request.files[key]
+            break
+    if not file and len(request.files) > 0:
+        file = next(iter(request.files.values()))
+
+    if not file or file.filename == '':
         return jsonify({'error': 'No file selected.'}), 400
-    if file:
-        filename = secure_filename(f"{uuid.uuid4()}_{file.filename}")
-        file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-        return jsonify({'url': f"/static/uploads/{filename}"}), 200
+
+    filename = secure_filename(f"{uuid.uuid4()}_{file.filename}")
+    file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+    return jsonify({'url': f"/static/uploads/{filename}"}), 200
 
 # ─────────────────────────────────────────────────────────────
 # 4. BOOKINGS & DATE AVAILABILITY

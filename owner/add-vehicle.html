@@ -97,13 +97,13 @@
                                     <div class="image-preview-overlay">
                                         <span class="fw-medium"><i class="fa-solid fa-pen me-2"></i>Change Image</span>
                                     </div>
-                                    <input type="file" id="vImageFile" class="d-none" accept="image/png, image/jpeg" required>
+                                    <input type="file" id="vImageFile" class="d-none" accept="image/png, image/jpeg">
                                 </div>
                             </div>
                             
                             <div class="col-12 mb-2">
-                                <label class="form-label fw-bold">Vehicle Documents (Required)</label>
-                                <input type="file" id="vDocFile" class="form-control form-control-custom" accept="application/pdf, image/png, image/jpeg" required>
+                                <label class="form-label fw-bold">Vehicle Documents (Optional)</label>
+                                <input type="file" id="vDocFile" class="form-control form-control-custom" accept="application/pdf, image/png, image/jpeg">
                                 <small class="text-secondary-gray">Upload RC Book, Insurance, or relevant documents (PDF/JPG/PNG).</small>
                             </div>
 
@@ -235,46 +235,75 @@
 
             const docInput = document.getElementById('vDocFile');
 
-            if (!selectedFile || !docInput.files[0]) {
+            if (!selectedFile) {
                 msgBox.className = 'alert alert-danger mb-4';
-                msgBox.innerHTML = '<i class="fa-solid fa-triangle-exclamation me-2"></i>Please select both a vehicle image and document.';
+                msgBox.innerHTML = '<i class="fa-solid fa-triangle-exclamation me-2"></i>Please click the preview container to select a vehicle photo.';
                 msgBox.classList.remove('d-none');
                 return;
             }
             
             btn.disabled = true;
-            btnText.textContent = 'Uploading...';
+            btnText.textContent = 'Processing...';
             spinner.classList.remove('d-none');
             msgBox.classList.add('d-none');
 
             try {
-                // 1. Upload Image to Flask Backend
+                const apiUrl = window.RENTRIDE_API_URL || 'http://127.0.0.1:5000';
+                let token = sessionStorage.getItem('token');
+                
+                if (!currentUser) {
+                    currentUser = await Auth.getCurrentUser();
+                }
+                const ownerId = (currentUser && (currentUser.id || currentUser.uid)) || sessionStorage.getItem('uid');
+                const ownerName = (currentUser && currentUser.name) || sessionStorage.getItem('userName') || 'Owner';
+
+                if (!ownerId || !token) {
+                    throw new Error('Your session has expired. Please log in again.');
+                }
+
+                // 1. Upload Vehicle Photo to Flask Backend
+                btnText.textContent = 'Uploading photo...';
                 const imgData = new FormData();
                 imgData.append('image', selectedFile);
-                const imgRes = await fetch(window.RENTRIDE_API_URL + '/api/vehicles/upload-image', {
+                const imgRes = await fetch(apiUrl + '/api/vehicles/upload-image', {
                     method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer ' + token
+                    },
                     body: imgData
                 });
-                if (!imgRes.ok) throw new Error('Failed to upload image');
+                if (!imgRes.ok) {
+                    const imgErr = await imgRes.json().catch(() => ({}));
+                    throw new Error(imgErr.error || 'Failed to upload vehicle image.');
+                }
                 const imgResData = await imgRes.json();
-                const imageUrl = window.RENTRIDE_API_URL + imgResData.url;
+                const imageUrl = apiUrl + imgResData.url;
                 
-                // Upload Document to Flask Backend
-                const docFile = docInput.files[0];
-                const docData = new FormData();
-                docData.append('image', docFile);
-                const docRes = await fetch(window.RENTRIDE_API_URL + '/api/vehicles/upload-image', {
-                    method: 'POST',
-                    body: docData
-                });
-                if (!docRes.ok) throw new Error('Failed to upload document');
-                const docResData = await docRes.json();
-                const docUrl = window.RENTRIDE_API_URL + docResData.url;
+                // 2. Upload Document to Flask Backend (if selected)
+                let docUrl = null;
+                const docFile = docInput.files ? docInput.files[0] : null;
+                if (docFile) {
+                    btnText.textContent = 'Uploading document...';
+                    const docData = new FormData();
+                    docData.append('document', docFile);
+                    const docRes = await fetch(apiUrl + '/api/vehicles/upload-image', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': 'Bearer ' + token
+                        },
+                        body: docData
+                    });
+                    if (docRes.ok) {
+                        const docResData = await docRes.json();
+                        docUrl = apiUrl + docResData.url;
+                    }
+                }
 
-                // 2. Save Vehicle to Flask API
+                // 3. Save Vehicle Details to MySQL via Flask REST API
+                btnText.textContent = 'Saving vehicle...';
                 const vehicleData = {
-                    ownerId: currentUser.id || currentUser.uid,
-                    ownerName: currentUser.name,
+                    ownerId: ownerId,
+                    ownerName: ownerName,
                     type: document.getElementById('vType').value,
                     brand: document.getElementById('vBrand').value.trim(),
                     model: document.getElementById('vModel').value.trim(),
@@ -283,17 +312,15 @@
                     fuelType: document.getElementById('vFuel').value,
                     transmission: document.getElementById('vTrans').value,
                     seats: parseInt(document.getElementById('vSeats').value),
-                    price: parseInt(document.getElementById('vPrice').value),
+                    price: parseFloat(document.getElementById('vPrice').value),
                     location: document.getElementById('vLocation').value.trim(),
                     description: document.getElementById('vDesc').value.trim(),
                     status: 'Pending Approval',
                     imageUrl: imageUrl,
-                    documentUrl: docUrl,
-                    submittedAt: new Date().toISOString()
+                    documentUrl: docUrl
                 };
 
-                const token = sessionStorage.getItem('token');
-                const response = await fetch(window.RENTRIDE_API_URL + '/api/vehicles', {
+                const response = await fetch(apiUrl + '/api/vehicles', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -302,13 +329,13 @@
                     body: JSON.stringify(vehicleData)
                 });
 
+                const resData = await response.json().catch(() => ({}));
                 if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(errorText || 'Server error saving vehicle');
+                    throw new Error(resData.error || 'Server error saving vehicle');
                 }
 
                 msgBox.className = 'alert alert-success mb-4';
-                msgBox.innerHTML = '<i class="fa-solid fa-circle-check me-2"></i>Vehicle submitted successfully! Your vehicle has been sent to the Admin for approval.';
+                msgBox.innerHTML = '<i class="fa-solid fa-circle-check me-2"></i>Vehicle submitted successfully! Your vehicle has been saved and submitted for Admin approval. Redirecting to My Vehicles...';
                 msgBox.classList.remove('d-none');
                 
                 // Reset form
@@ -317,10 +344,14 @@
                 imgPreview.style.display = 'none';
                 prompt.style.display = 'block';
 
+                setTimeout(() => {
+                    window.location.href = 'manage-vehicles.html';
+                }, 1500);
+
             } catch (err) {
-                console.error(err);
+                console.error('Error adding vehicle:', err);
                 msgBox.className = 'alert alert-danger mb-4';
-                msgBox.innerHTML = '<i class="fa-solid fa-triangle-exclamation me-2"></i>Failed to add vehicle. ' + (err.message || 'Unknown error');
+                msgBox.innerHTML = '<i class="fa-solid fa-triangle-exclamation me-2"></i>' + (err.message || 'Failed to add vehicle.');
                 msgBox.classList.remove('d-none');
             } finally {
                 btn.disabled = false;

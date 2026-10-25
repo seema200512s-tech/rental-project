@@ -155,10 +155,11 @@
             document.getElementById('welcomeUser').textContent = owner.name;
 
             try {
+                const ownerId = owner.id || owner.uid;
                 const [vehicles, bookings, payments] = await Promise.all([
-                    DB.getVehiclesByOwner(owner.uid),
-                    DB.getBookingsByOwner(owner.uid),
-                    DB.getPaymentsByOwner(owner.uid)
+                    DB.getVehiclesByOwner(ownerId),
+                    DB.getBookingsByOwner(ownerId),
+                    DB.getPaymentsByOwner(ownerId)
                 ]);
 
                 // Stats
