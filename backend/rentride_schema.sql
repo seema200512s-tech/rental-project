@@ -79,6 +79,7 @@ CREATE TABLE IF NOT EXISTS bookings (
     license_number  VARCHAR(100)  DEFAULT NULL,
     license_expiry  DATE          DEFAULT NULL,
     aadhaar_last4   VARCHAR(20)   DEFAULT NULL,
+    razorpay_order_id VARCHAR(100) DEFAULT NULL,
     created_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE,
@@ -101,11 +102,14 @@ CREATE TABLE IF NOT EXISTS payments (
     vehicle_id    VARCHAR(36)   DEFAULT NULL,
     amount        DECIMAL(10,2) NOT NULL,
     status        VARCHAR(50)   NOT NULL DEFAULT 'Pending Verification',
-        -- Possible: 'Pending Verification','Paid','Rejected'
+        -- Possible: 'Pending Verification','Paid','Rejected','Failed'
     method        VARCHAR(50)   DEFAULT 'UPI',
     reference_no  VARCHAR(100)  DEFAULT NULL,
     payment_proof TEXT          DEFAULT NULL,
     admin_note    TEXT          DEFAULT NULL,
+    razorpay_order_id   VARCHAR(100) DEFAULT NULL,
+    razorpay_payment_id VARCHAR(100) DEFAULT NULL,
+    razorpay_signature  TEXT         DEFAULT NULL,
     created_at    TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE CASCADE,

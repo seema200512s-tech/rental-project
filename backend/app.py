@@ -10,6 +10,13 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from werkzeug.exceptions import HTTPException
 import jwt
+import hmac
+import hashlib
+
+try:
+    import razorpay
+except ImportError:
+    razorpay = None
 
 try:
     from config import Config
@@ -18,6 +25,20 @@ except ImportError:
 
 app = Flask(__name__)
 app.config.from_object(Config)
+
+def get_razorpay_client():
+    key_id = (app.config.get('RAZORPAY_KEY_ID') or '').strip()
+    key_secret = (app.config.get('RAZORPAY_KEY_SECRET') or '').strip()
+    if not key_id or not key_secret or 'REPLACE' in key_id or 'REPLACE' in key_secret:
+        return None
+    if razorpay is None:
+        return None
+    try:
+        return razorpay.Client(auth=(key_id, key_secret))
+    except Exception as e:
+        app.logger.error(f"Failed to initialize Razorpay client: {e}")
+        return None
+
 
 # Configure CORS dynamically to allow local development on any port and production Vercel origins
 cors_origins_env = os.environ.get('CORS_ORIGINS', '')
@@ -979,6 +1000,9 @@ def get_payments(current_user):
         p['referenceNo'] = p.pop('reference_no', None)
         p['paymentProof'] = p.pop('payment_proof', None)
         p['adminNote'] = p.pop('admin_note', None)
+        p['razorpayOrderId'] = p.pop('razorpay_order_id', None)
+        p['razorpayPaymentId'] = p.pop('razorpay_payment_id', None)
+        p['razorpaySignature'] = p.pop('razorpay_signature', None)
         if 'created_at' in p and p['created_at']:
             p['paymentDate'] = p.pop('created_at').isoformat()
 
@@ -1033,6 +1057,471 @@ def add_payment(current_user):
     cursor.close()
     conn.close()
     return jsonify({'id': pid, 'success': True}), 201
+
+# ─────────────────────────────────────────────────────────────
+# RAZORPAY UPI PAYMENT GATEWAY & VERIFICATION
+# ─────────────────────────────────────────────────────────────
+
+@app.route('/api/payments/create-order', methods=['POST'])
+@token_required
+def create_payment_order(current_user):
+    data = request.get_json() or {}
+    booking_id = data.get('bookingId')
+
+    if not booking_id:
+        return jsonify({'error': 'Missing booking ID.'}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    cursor.execute("""
+        SELECT b.*, v.brand, v.model, v.status AS vehicle_status
+        FROM bookings b
+        JOIN vehicles v ON b.vehicle_id = v.id
+        WHERE b.id = %s
+    """, (booking_id,))
+    booking = cursor.fetchone()
+
+    if not booking:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Booking not found.'}), 404
+
+    # Ensure booking belongs to caller or caller is admin
+    if current_user['role'] != 'admin' and booking['user_id'] != current_user['id']:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Forbidden: You do not own this booking.'}), 403
+
+    # Check booking status
+    if booking['status'] in ['Cancelled', 'Rejected']:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': f"Cannot pay for a {booking['status'].lower()} booking."}), 400
+
+    if booking['payment_status'] == 'Paid' or booking['status'] == 'Confirmed':
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'This booking has already been paid and confirmed.'}), 400
+
+    # Availability re-check for vehicle status
+    if booking['vehicle_status'] in ['Maintenance', 'Inactive', 'Rejected', 'Pending Approval']:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Vehicle is currently unavailable for rental.'}), 400
+
+    # Prevent overlapping confirmed bookings
+    cursor.execute("""
+        SELECT id FROM bookings
+        WHERE vehicle_id = %s
+          AND status IN ('Confirmed', 'Active')
+          AND id != %s
+          AND (%s <= end_date AND %s >= start_date)
+    """, (booking['vehicle_id'], booking_id, booking['start_date'], booking['end_date']))
+    overlap = cursor.fetchone()
+    if overlap:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Vehicle is already booked by another confirmed reservation for these dates.'}), 409
+
+    # Total amount from MySQL - Never trust frontend amount!
+    amount_rupees = float(booking['total_amount'])
+    if amount_rupees <= 0:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Invalid booking amount.'}), 400
+
+    amount_paise = int(round(amount_rupees * 100))
+
+    client = get_razorpay_client()
+    if not client:
+        cursor.close()
+        conn.close()
+        return jsonify({
+            'error': 'Razorpay gateway is not configured. Please add valid RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET to your backend environment.'
+        }), 503
+
+    try:
+        # Check if an existing order was already created for this booking
+        existing_order_id = booking.get('razorpay_order_id')
+        rzp_order = None
+        if existing_order_id:
+            try:
+                fetched = client.order.fetch(existing_order_id)
+                if fetched and fetched.get('amount') == amount_paise and fetched.get('status') in ['created', 'attempted']:
+                    rzp_order = fetched
+            except Exception:
+                rzp_order = None
+
+        if not rzp_order:
+            order_receipt = f"b_{booking_id.replace('-', '')[:30]}"
+            order_payload = {
+                'amount': amount_paise,
+                'currency': 'INR',
+                'receipt': order_receipt,
+                'notes': {
+                    'booking_id': booking_id,
+                    'user_id': current_user['id'],
+                    'vehicle_id': booking['vehicle_id'],
+                    'vehicle_name': f"{booking['brand']} {booking['model']}"
+                }
+            }
+            rzp_order = client.order.create(data=order_payload)
+            cursor.execute("UPDATE bookings SET razorpay_order_id = %s WHERE id = %s", (rzp_order['id'], booking_id))
+            conn.commit()
+
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            'orderId': rzp_order['id'],
+            'amount': amount_paise,
+            'amountInRupees': amount_rupees,
+            'currency': 'INR',
+            'keyId': app.config.get('RAZORPAY_KEY_ID', ''),
+            'bookingId': booking_id,
+            'vehicleName': f"{booking['brand']} {booking['model']}",
+            'prefill': {
+                'name': current_user.get('name') or '',
+                'email': current_user.get('email') or '',
+                'contact': current_user.get('phone') or ''
+            }
+        }), 200
+
+    except Exception as e:
+        cursor.close()
+        conn.close()
+        app.logger.error(f"Razorpay create-order error: {str(e)}")
+        return jsonify({'error': f"Failed to initialize payment gateway order: {str(e)}"}), 500
+
+
+@app.route('/api/payments/verify', methods=['POST'])
+@token_required
+def verify_payment(current_user):
+    data = request.get_json() or {}
+    booking_id = data.get('bookingId')
+    rzp_order_id = data.get('razorpay_order_id')
+    rzp_payment_id = data.get('razorpay_payment_id')
+    rzp_signature = data.get('razorpay_signature')
+
+    if not booking_id or not rzp_order_id or not rzp_payment_id or not rzp_signature:
+        return jsonify({'error': 'Missing required payment verification parameters.'}), 400
+
+    client = get_razorpay_client()
+    if not client:
+        return jsonify({'error': 'Razorpay gateway is not configured on the server.'}), 503
+
+    # 1. Official Signature Verification
+    try:
+        params_dict = {
+            'razorpay_order_id': rzp_order_id,
+            'razorpay_payment_id': rzp_payment_id,
+            'razorpay_signature': rzp_signature
+        }
+        client.utility.verify_payment_signature(params_dict)
+    except Exception as e:
+        app.logger.warning(f"Signature verification failed for order {rzp_order_id}: {str(e)}")
+        return jsonify({'error': 'Invalid payment signature. Verification failed.'}), 400
+
+    # 2. Fetch payment details from Razorpay to validate status, amount, currency, order_id
+    try:
+        payment_details = client.payment.fetch(rzp_payment_id)
+        if not payment_details:
+            return jsonify({'error': 'Unable to retrieve payment details from gateway.'}), 400
+
+        payment_status = payment_details.get('status')
+        if payment_status not in ['captured', 'authorized']:
+            return jsonify({
+                'error': f"Payment is not confirmed. Current status: {payment_status}."
+            }), 400
+
+        if payment_details.get('order_id') != rzp_order_id:
+            return jsonify({'error': 'Order ID mismatch between signature and gateway record.'}), 400
+
+        if payment_details.get('currency') != 'INR':
+            return jsonify({'error': 'Invalid payment currency.'}), 400
+    except Exception as e:
+        app.logger.error(f"Error fetching payment details from Razorpay: {str(e)}")
+        return jsonify({'error': f"Gateway error during payment verification: {str(e)}"}), 500
+
+    # 3. Database transaction with row lock & idempotency check
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    try:
+        # A. Idempotency Check: Has this payment ID already been recorded as Paid?
+        cursor.execute("SELECT * FROM payments WHERE razorpay_payment_id = %s", (rzp_payment_id,))
+        existing_pmt = cursor.fetchone()
+        if existing_pmt and existing_pmt.get('status') == 'Paid':
+            cursor.execute("""
+                SELECT b.*, v.brand, v.model
+                FROM bookings b
+                JOIN vehicles v ON b.vehicle_id = v.id
+                WHERE b.id = %s
+            """, (existing_pmt['booking_id'],))
+            b_info = cursor.fetchone()
+            conn.commit()
+            return jsonify({
+                'success': True,
+                'alreadyProcessed': True,
+                'paymentId': rzp_payment_id,
+                'orderId': rzp_order_id,
+                'bookingId': existing_pmt['booking_id'],
+                'amount': float(existing_pmt['amount']),
+                'vehicleName': f"{b_info['brand']} {b_info['model']}" if b_info else "Vehicle",
+                'startDate': str(b_info['start_date']) if b_info else "",
+                'endDate': str(b_info['end_date']) if b_info else "",
+                'paymentDate': existing_pmt['created_at'].strftime("%d %b %Y, %I:%M %p") if existing_pmt.get('created_at') else datetime.datetime.now().strftime("%d %b %Y, %I:%M %p"),
+                'status': 'Confirmed',
+                'message': 'Payment already verified and booking confirmed.'
+            }), 200
+
+        # B. Lock the booking row
+        cursor.execute("""
+            SELECT b.*, v.brand, v.model, v.status AS vehicle_status
+            FROM bookings b
+            JOIN vehicles v ON b.vehicle_id = v.id
+            WHERE b.id = %s
+            FOR UPDATE
+        """, (booking_id,))
+        booking = cursor.fetchone()
+
+        if not booking:
+            conn.rollback()
+            return jsonify({'error': 'Booking not found.'}), 404
+
+        if current_user['role'] != 'admin' and booking['user_id'] != current_user['id']:
+            conn.rollback()
+            return jsonify({'error': 'Forbidden: You do not own this booking.'}), 403
+
+        # Validate amount
+        expected_amount_paise = int(round(float(booking['total_amount']) * 100))
+        paid_amount_paise = int(payment_details.get('amount', 0))
+        if paid_amount_paise != expected_amount_paise:
+            conn.rollback()
+            return jsonify({
+                'error': f"Paid amount (₹{paid_amount_paise/100:.2f}) does not match booking total (₹{expected_amount_paise/100:.2f})."
+            }), 400
+
+        # C. Recheck vehicle availability & prevent overlapping confirmed bookings
+        cursor.execute("""
+            SELECT id FROM bookings
+            WHERE vehicle_id = %s
+              AND status IN ('Confirmed', 'Active')
+              AND id != %s
+              AND (%s <= end_date AND %s >= start_date)
+            FOR UPDATE
+        """, (booking['vehicle_id'], booking_id, booking['start_date'], booking['end_date']))
+        conflict = cursor.fetchone()
+        if conflict:
+            conn.rollback()
+            return jsonify({
+                'error': 'Vehicle is already booked by another confirmed reservation for these dates. Payment requires manual resolution or refund.'
+            }), 409
+
+        # D. Record Payment in payments table
+        payment_uuid = str(uuid.uuid4())
+        cursor.execute("""
+            INSERT INTO payments (
+                id, booking_id, user_id, owner_id, vehicle_id,
+                amount, status, method, reference_no,
+                razorpay_order_id, razorpay_payment_id, razorpay_signature
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (
+            payment_uuid,
+            booking_id,
+            booking['user_id'],
+            booking['owner_id'],
+            booking['vehicle_id'],
+            float(booking['total_amount']),
+            'Paid',
+            'UPI_RAZORPAY',
+            rzp_payment_id,
+            rzp_order_id,
+            rzp_payment_id,
+            rzp_signature
+        ))
+
+        # E. Update Booking to Confirmed & Paid
+        cursor.execute("""
+            UPDATE bookings
+            SET status = 'Confirmed',
+                payment_status = 'Paid',
+                razorpay_order_id = %s
+            WHERE id = %s
+        """, (rzp_order_id, booking_id))
+
+        # F. Notifications
+        amount_fmt = f"{float(booking['total_amount']):,.2f}"
+        cursor.execute("""
+            INSERT INTO notifications (id, recipient_id, recipient_role, title, message, type)
+            VALUES (%s, %s, 'user', %s, %s, 'payment_success')
+        """, (
+            str(uuid.uuid4()),
+            booking['user_id'],
+            'Payment Successful',
+            f"Your payment of ₹{amount_fmt} for booking #{booking_id[:8]} ({booking['brand']} {booking['model']}) was verified. Booking is Confirmed!"
+        ))
+        cursor.execute("""
+            INSERT INTO notifications (id, recipient_id, recipient_role, title, message, type)
+            VALUES (%s, %s, 'owner', %s, %s, 'booking_confirmed')
+        """, (
+            str(uuid.uuid4()),
+            booking['owner_id'],
+            'Booking Confirmed',
+            f"Booking #{booking_id[:8]} for {booking['brand']} {booking['model']} has been paid (₹{amount_fmt}) and confirmed."
+        ))
+        cursor.execute("""
+            INSERT INTO notifications (id, recipient_role, title, message, type)
+            VALUES (%s, 'admin', %s, %s, 'payment_success')
+        """, (
+            str(uuid.uuid4()),
+            'Payment Verified (Razorpay)',
+            f"Payment of ₹{amount_fmt} verified for booking #{booking_id[:8]} (Payment ID: {rzp_payment_id})."
+        ))
+
+        conn.commit()
+
+        return jsonify({
+            'success': True,
+            'paymentId': rzp_payment_id,
+            'orderId': rzp_order_id,
+            'bookingId': booking_id,
+            'amount': float(booking['total_amount']),
+            'vehicleName': f"{booking['brand']} {booking['model']}",
+            'startDate': str(booking['start_date']),
+            'endDate': str(booking['end_date']),
+            'paymentDate': datetime.datetime.now().strftime("%d %b %Y, %I:%M %p"),
+            'status': 'Confirmed',
+            'message': 'Payment verified and booking confirmed successfully!'
+        }), 200
+
+    except Exception as e:
+        conn.rollback()
+        app.logger.error(f"Error in verify_payment transaction: {str(e)}")
+        return jsonify({'error': f"Failed to confirm booking: {str(e)}"}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
+
+@app.route('/api/payments/webhook', methods=['POST'])
+def razorpay_webhook():
+    webhook_secret = (app.config.get('RAZORPAY_WEBHOOK_SECRET') or '').strip()
+    if not webhook_secret or 'REPLACE' in webhook_secret:
+        return jsonify({'error': 'Webhook secret not configured on server'}), 500
+
+    client = get_razorpay_client()
+    if not client:
+        return jsonify({'error': 'Razorpay client not configured'}), 500
+
+    webhook_signature = request.headers.get('X-Razorpay-Signature')
+    if not webhook_signature:
+        return jsonify({'error': 'Missing X-Razorpay-Signature header'}), 400
+
+    raw_body = request.get_data(as_text=True)
+
+    try:
+        client.utility.verify_webhook_signature(raw_body, webhook_signature, webhook_secret)
+    except Exception as e:
+        app.logger.warning(f"Invalid webhook signature: {str(e)}")
+        return jsonify({'error': 'Invalid webhook signature'}), 400
+
+    event_payload = request.get_json() or {}
+    event_type = event_payload.get('event')
+
+    if event_type == 'payment.captured':
+        payment_entity = event_payload.get('payload', {}).get('payment', {}).get('entity', {})
+        rzp_payment_id = payment_entity.get('id')
+        rzp_order_id = payment_entity.get('order_id')
+        notes = payment_entity.get('notes', {})
+        booking_id = notes.get('booking_id')
+
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        try:
+            # Check idempotency
+            cursor.execute("SELECT id, status FROM payments WHERE razorpay_payment_id = %s", (rzp_payment_id,))
+            existing = cursor.fetchone()
+            if existing and existing.get('status') == 'Paid':
+                cursor.close()
+                conn.close()
+                return jsonify({'status': 'ok', 'message': 'Payment already processed'}), 200
+
+            if not booking_id and rzp_order_id:
+                cursor.execute("SELECT id FROM bookings WHERE razorpay_order_id = %s", (rzp_order_id,))
+                found = cursor.fetchone()
+                if found:
+                    booking_id = found['id']
+
+            if booking_id:
+                cursor.execute("""
+                    SELECT b.*, v.brand, v.model 
+                    FROM bookings b 
+                    JOIN vehicles v ON b.vehicle_id = v.id 
+                    WHERE b.id = %s FOR UPDATE
+                """, (booking_id,))
+                b = cursor.fetchone()
+                if b and b['payment_status'] != 'Paid':
+                    pid = str(uuid.uuid4())
+                    cursor.execute("""
+                        INSERT INTO payments (
+                            id, booking_id, user_id, owner_id, vehicle_id,
+                            amount, status, method, reference_no,
+                            razorpay_order_id, razorpay_payment_id
+                        ) VALUES (%s, %s, %s, %s, %s, %s, 'Paid', 'UPI_RAZORPAY', %s, %s, %s)
+                    """, (
+                        pid, booking_id, b['user_id'], b['owner_id'], b['vehicle_id'],
+                        float(b['total_amount']), rzp_payment_id, rzp_order_id, rzp_payment_id
+                    ))
+                    cursor.execute("""
+                        UPDATE bookings 
+                        SET status = 'Confirmed', payment_status = 'Paid', razorpay_order_id = %s 
+                        WHERE id = %s
+                    """, (rzp_order_id, booking_id))
+                    conn.commit()
+        except Exception as e:
+            conn.rollback()
+            app.logger.error(f"Error processing webhook: {str(e)}")
+        finally:
+            cursor.close()
+            conn.close()
+
+    elif event_type == 'payment.failed':
+        payment_entity = event_payload.get('payload', {}).get('payment', {}).get('entity', {})
+        rzp_payment_id = payment_entity.get('id')
+        rzp_order_id = payment_entity.get('order_id')
+        notes = payment_entity.get('notes', {})
+        booking_id = notes.get('booking_id')
+        if booking_id:
+            conn = get_db_connection()
+            cursor = conn.cursor(dictionary=True)
+            try:
+                cursor.execute("SELECT user_id, owner_id, vehicle_id, total_amount FROM bookings WHERE id = %s", (booking_id,))
+                b = cursor.fetchone()
+                if b:
+                    pid = str(uuid.uuid4())
+                    cursor.execute("""
+                        INSERT INTO payments (
+                            id, booking_id, user_id, owner_id, vehicle_id,
+                            amount, status, method, reference_no,
+                            razorpay_order_id, razorpay_payment_id
+                        ) VALUES (%s, %s, %s, %s, %s, %s, 'Failed', 'UPI_RAZORPAY', %s, %s, %s)
+                    """, (
+                        pid, booking_id, b['user_id'], b['owner_id'], b['vehicle_id'],
+                        float(b['total_amount']), rzp_payment_id, rzp_order_id, rzp_payment_id
+                    ))
+                    conn.commit()
+            except Exception as e:
+                conn.rollback()
+                app.logger.error(f"Error recording failed payment webhook: {str(e)}")
+            finally:
+                cursor.close()
+                conn.close()
+
+    return jsonify({'status': 'ok'}), 200
+
 
 @app.route('/api/payments/<pid>', methods=['PUT'])
 @token_required

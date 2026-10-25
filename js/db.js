@@ -207,6 +207,20 @@ const DB = {
     },
 
     // ─── PAYMENTS ─────────────────────────────────────
+    createPaymentOrder: async function(bookingId) {
+        return await this._api('/api/payments/create-order', {
+            method: 'POST',
+            body: { bookingId: bookingId }
+        });
+    },
+
+    verifyPayment: async function(verifyData) {
+        return await this._api('/api/payments/verify', {
+            method: 'POST',
+            body: verifyData
+        });
+    },
+
     addPayment: async function(paymentData) {
         const res = await this._api('/api/payments', {
             method: 'POST',

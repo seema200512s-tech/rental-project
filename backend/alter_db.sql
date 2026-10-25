@@ -20,7 +20,8 @@ ALTER TABLE bookings
     ADD COLUMN IF NOT EXISTS payment_status VARCHAR(50)   NOT NULL DEFAULT 'Pending',
     ADD COLUMN IF NOT EXISTS license_number VARCHAR(100)  DEFAULT NULL,
     ADD COLUMN IF NOT EXISTS license_expiry DATE          DEFAULT NULL,
-    ADD COLUMN IF NOT EXISTS aadhaar_last4  VARCHAR(20)   DEFAULT NULL;
+    ADD COLUMN IF NOT EXISTS aadhaar_last4  VARCHAR(20)   DEFAULT NULL,
+    ADD COLUMN IF NOT EXISTS razorpay_order_id VARCHAR(100) DEFAULT NULL;
 
 -- ─── PAYMENTS ───────────────────────────────────────────────
 ALTER TABLE payments
@@ -28,7 +29,10 @@ ALTER TABLE payments
     ADD COLUMN IF NOT EXISTS method         VARCHAR(50)   DEFAULT 'UPI',
     ADD COLUMN IF NOT EXISTS reference_no   VARCHAR(100)  DEFAULT NULL,
     ADD COLUMN IF NOT EXISTS payment_proof  TEXT          DEFAULT NULL,
-    ADD COLUMN IF NOT EXISTS admin_note     TEXT          DEFAULT NULL;
+    ADD COLUMN IF NOT EXISTS admin_note     TEXT          DEFAULT NULL,
+    ADD COLUMN IF NOT EXISTS razorpay_order_id VARCHAR(100) DEFAULT NULL,
+    ADD COLUMN IF NOT EXISTS razorpay_payment_id VARCHAR(100) DEFAULT NULL,
+    ADD COLUMN IF NOT EXISTS razorpay_signature TEXT DEFAULT NULL;
 
 -- Update payments.status default to match app.py expectations
 ALTER TABLE payments
